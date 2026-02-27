@@ -42,6 +42,8 @@ public partial class App : System.Windows.Application
         var dbInitializer = Services.GetRequiredService<DatabaseInitializer>();
         await dbInitializer.InitializeAsync();
 
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
         var login = new LoginWindow { DataContext = Services.GetRequiredService<LoginViewModel>() };
         if (login.ShowDialog() != true)
         {
@@ -49,7 +51,14 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        var menu = new MenuWindow { DataContext = Services.GetRequiredService<MenuViewModel>() };
+        var menu = new MenuWindow
+        {
+            DataContext = Services.GetRequiredService<MenuViewModel>(),
+            WindowState = WindowState.Maximized
+        };
+
+        MainWindow = menu;
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
         menu.Show();
     }
 }
