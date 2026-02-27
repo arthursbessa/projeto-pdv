@@ -13,7 +13,7 @@ public sealed class SalesRepository : ISalesRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task SaveSaleWithOutboxAsync(Sale sale, string outboxPayloadJson, CancellationToken cancellationToken = default)
+    public async Task SaveSaleWithOutboxAsync(Sale sale, string outboxPayloadJson, string? cashRegisterSessionId = null, CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
@@ -22,13 +22,14 @@ public sealed class SalesRepository : ISalesRepository
         var saleCommand = connection.CreateCommand();
         saleCommand.Transaction = tx;
         saleCommand.CommandText = @"
-INSERT INTO sales (id, created_at, total_cents, payment_method, payment_method_id, status)
-VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLETED');";
+INSERT INTO sales (id, created_at, total_cents, payment_method, payment_method_id, status, cash_register_session_id)
+VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLETED', $cashRegisterSessionId);";
         saleCommand.Parameters.AddWithValue("$id", sale.SaleId.ToString());
         saleCommand.Parameters.AddWithValue("$createdAt", sale.CreatedAt.ToString("O"));
         saleCommand.Parameters.AddWithValue("$totalCents", sale.TotalCents);
         saleCommand.Parameters.AddWithValue("$paymentMethod", sale.PaymentMethod.ToString());
         saleCommand.Parameters.AddWithValue("$paymentMethodId", (int)sale.PaymentMethod);
+        saleCommand.Parameters.AddWithValue("$cashRegisterSessionId", (object?)cashRegisterSessionId ?? DBNull.Value);
         await saleCommand.ExecuteNonQueryAsync(cancellationToken);
 
         foreach (var item in sale.Items)

@@ -15,15 +15,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly SaleBuilderService _saleBuilderService;
     private readonly ISalesRepository _salesRepository;
     private readonly IOutboxRepository _outboxRepository;
+    private readonly SessionContext _session;
     private string _barcodeInput = string.Empty;
     private string _statusMessage = "PDV local iniciado.";
     private SaleItem? _selectedItem;
 
-    public MainViewModel(SaleBuilderService saleBuilderService, ISalesRepository salesRepository, IOutboxRepository outboxRepository, PdvOptions options)
+    public MainViewModel(SaleBuilderService saleBuilderService, ISalesRepository salesRepository, IOutboxRepository outboxRepository, PdvOptions options, SessionContext session)
     {
         _saleBuilderService = saleBuilderService;
         _salesRepository = salesRepository;
         _outboxRepository = outboxRepository;
+        _session = session;
 
         DatabaseRelativePath = $"./{options.DatabaseRelativePath.Replace('\\', '/')}";
         DatabaseFullPath = options.DatabaseFullPath;
@@ -38,7 +40,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string BarcodeInput { get => _barcodeInput; set => SetField(ref _barcodeInput, value); }
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
-    public string OfflineStatus => "Local (SQLite)";
+    public string OfflineStatus => "Modo Local";
     public string DatabaseRelativePath { get; }
     public string DatabaseFullPath { get; }
     public string DatabaseStatus => $"Banco: {DatabaseRelativePath}";
@@ -60,6 +62,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task AddBarcodeAsync()
     {
+        if (_session.OpenCashRegister is null)
+        {
+            StatusMessage = "Abra o caixa para iniciar vendas.";
+            return;
+        }
+
         BarcodeInput = BarcodeInput.Trim();
 
         if (string.IsNullOrWhiteSpace(BarcodeInput))
@@ -128,6 +136,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task FinalizeAsync(PaymentMethod paymentMethod)
     {
+        if (_session.OpenCashRegister is null)
+        {
+            StatusMessage = "Venda bloqueada: nenhum caixa aberto.";
+            return;
+        }
+
+        if (_session.OpenCashRegister.BusinessDate != DateTimeOffset.Now.ToString("yyyy-MM-dd"))
+        {
+            StatusMessage = "Caixa aberto em data anterior. Feche e reabra o caixa do dia.";
+            return;
+        }
+
         if (!Items.Any())
         {
             StatusMessage = "Adicione itens para finalizar a venda.";
@@ -162,7 +182,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             items = sale.Items.Select(x => new { product_id = x.ProductId, barcode = x.Barcode, description = x.Description, quantity = x.Quantity, price_cents = x.PriceCents, subtotal_cents = x.SubtotalCents })
         });
 
-        await _salesRepository.SaveSaleWithOutboxAsync(sale, payload);
+        await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
         CancelSale();
         var pending = await _outboxRepository.GetPendingCountAsync();
         StatusMessage = $"Venda finalizada ({paymentMethod}). Outbox pendente: {pending}";
