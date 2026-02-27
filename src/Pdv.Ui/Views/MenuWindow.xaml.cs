@@ -63,4 +63,18 @@ public partial class MenuWindow : Window
         var sales = await repository.GetSalesReportBySessionAsync(session.Id);
         new SalesReportWindow(sales) { Owner = this }.ShowDialog();
     }
+
+    private async void OpenCashReport_Click(object sender, RoutedEventArgs e)
+    {
+        var session = App.Services.GetRequiredService<SessionContext>().OpenCashRegister;
+        if (session is null)
+        {
+            MessageBox.Show("Não há caixa aberto.");
+            return;
+        }
+
+        var repository = App.Services.GetRequiredService<ICashRegisterRepository>();
+        var report = await repository.GetCashReportBySessionAsync(session.Id);
+        new CashReportWindow(report) { Owner = this }.ShowDialog();
+    }
 }

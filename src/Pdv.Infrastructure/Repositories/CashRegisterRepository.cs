@@ -162,6 +162,45 @@ ORDER BY s.created_at DESC;";
         return result;
     }
 
+
+    public async Task<IReadOnlyList<CashReportEntry>> GetCashReportBySessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+SELECT 'VENDA' AS entry_type,
+       s.id AS reference_id,
+       s.created_at,
+       s.total_cents AS amount_cents
+FROM sales s
+WHERE s.cash_register_session_id = $sessionId
+UNION ALL
+SELECT 'SANGRIA' AS entry_type,
+       COALESCE(w.reason, 'Sangria') AS reference_id,
+       w.created_at,
+       -w.amount_cents AS amount_cents
+FROM cash_withdrawals w
+WHERE w.cash_register_session_id = $sessionId
+ORDER BY created_at DESC;";
+        cmd.Parameters.AddWithValue("$sessionId", sessionId);
+
+        var result = new List<CashReportEntry>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new CashReportEntry
+            {
+                Type = reader.GetString(0),
+                ReferenceId = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                CreatedAt = DateTimeOffset.Parse(reader.GetString(2)),
+                AmountCents = reader.GetInt32(3)
+            });
+        }
+
+        return result;
+    }
+
     private static async Task<int> GetOpeningAmountAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
     {
         var opening = connection.CreateCommand();

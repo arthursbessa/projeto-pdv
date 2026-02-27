@@ -9,7 +9,7 @@ public partial class SalesReportWindow : Window
     public SalesReportWindow(IReadOnlyList<SalesReportEntry> sales)
     {
         InitializeComponent();
-        DataContext = sales.Select(x => new SalesReportLine(
+        var lines = sales.Select(x => new SalesReportLine(
             x.CreatedAt,
             x.SaleId,
             x.SessionId,
@@ -17,6 +17,9 @@ public partial class SalesReportWindow : Window
             x.OperatorName,
             x.PaymentMethod,
             MoneyFormatter.FormatFromCents(x.TotalCents))).ToList();
+
+        var totalBalanceCents = sales.Sum(x => x.TotalCents);
+        DataContext = new SalesReportViewData(lines, $"Balanço total do caixa: {MoneyFormatter.FormatFromCents(totalBalanceCents)}");
     }
 
     public sealed record SalesReportLine(
@@ -27,4 +30,8 @@ public partial class SalesReportWindow : Window
         string OperatorName,
         string PaymentMethod,
         string TotalFormatted);
+
+    public sealed record SalesReportViewData(
+        IReadOnlyList<SalesReportLine> Entries,
+        string TotalBalanceFormatted);
 }
