@@ -41,11 +41,12 @@
                 </StackPanel>
             </Border>
 
-            <UniformGrid Grid.Column="1" Columns="2" Rows="2" Margin="14,0,0,0">
+            <UniformGrid Grid.Column="1" Columns="2" Rows="3" Margin="14,0,0,0">
                 <Button Content="Acessar PDV" Click="OpenPdv_Click" Margin="10" Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="18"/>
                 <Button Content="Produtos" Click="OpenProducts_Click" Margin="10" Background="#0EA5E9" Foreground="White" FontWeight="Bold" FontSize="18"/>
                 <Button Content="Usuarios" Click="OpenUsers_Click" Margin="10" Background="#7C3AED" Foreground="White" FontWeight="Bold" FontSize="18"/>
                 <Button Content="Relatório de vendas" Click="OpenSales_Click" Margin="10" Background="#14B8A6" Foreground="White" FontWeight="Bold" FontSize="18"/>
+                <Button Content="Relatório de caixa" Click="OpenCashReport_Click" Margin="10" Background="#0891B2" Foreground="White" FontWeight="Bold" FontSize="18"/>
             </UniformGrid>
         </Grid>
 
