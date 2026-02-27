@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Windows;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
@@ -16,7 +15,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly SaleBuilderService _saleBuilderService;
     private readonly ISalesRepository _salesRepository;
     private readonly IOutboxRepository _outboxRepository;
-    private readonly string _dbPath;
     private string _barcodeInput = string.Empty;
     private string _statusMessage = "PDV local iniciado.";
     private SaleItem? _selectedItem;
@@ -26,22 +24,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _saleBuilderService = saleBuilderService;
         _salesRepository = salesRepository;
         _outboxRepository = outboxRepository;
-        _dbPath = options.DatabaseRelativePath;
 
-        FinalizeCommand = new RelayCommand(FinalizeAsync, () => Items.Any());
+        DatabaseRelativePath = $"./{options.DatabaseRelativePath.Replace('\\', '/')}";
+        DatabaseFullPath = options.DatabaseFullPath;
+
         RemoveSelectedCommand = new RelayCommand(RemoveSelectedItem, () => SelectedItem is not null);
-        CancelSaleCommand = new RelayCommand(CancelSale);
+        CancelSaleCommand = new RelayCommand(CancelSale, () => Items.Any());
     }
 
     public ObservableCollection<SaleItem> Items { get; } = [];
-    public RelayCommand FinalizeCommand { get; }
     public RelayCommand RemoveSelectedCommand { get; }
     public RelayCommand CancelSaleCommand { get; }
 
     public string BarcodeInput { get => _barcodeInput; set => SetField(ref _barcodeInput, value); }
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
-    public string OfflineStatus => "Offline Local";
-    public string DatabaseStatus => $"SQLite: {_dbPath}";
+    public string OfflineStatus => "Local (SQLite)";
+    public string DatabaseRelativePath { get; }
+    public string DatabaseFullPath { get; }
+    public string DatabaseStatus => $"Banco: {DatabaseRelativePath}";
     public int ItemCount => Items.Sum(x => x.Quantity);
     public int TotalCents => Items.Sum(x => x.SubtotalCents);
     public string TotalFormatted => MoneyFormatter.FormatFromCents(TotalCents);
@@ -73,12 +73,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         ReplaceItems(result.Items);
         BarcodeInput = string.Empty;
-        StatusMessage = "Item adicionado.";
+        StatusMessage = "Item adicionado à venda.";
     }
 
     public void RemoveSelectedItem()
     {
-        if (SelectedItem is null) return;
+        if (SelectedItem is null)
+        {
+            StatusMessage = "Selecione um item para remover.";
+            return;
+        }
+
         Items.Remove(SelectedItem);
         SelectedItem = null;
         NotifyTotals();
@@ -88,19 +93,44 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public void CancelSale()
     {
         Items.Clear();
+        SelectedItem = null;
         NotifyTotals();
         StatusMessage = "Venda cancelada.";
     }
 
-    public async Task FinalizeAsync()
+    public bool UpdateItemQuantity(SaleItem? item, string? quantityText)
     {
-        if (!Items.Any()) return;
+        if (item is null)
+        {
+            StatusMessage = "Nenhum item selecionado para alterar quantidade.";
+            return false;
+        }
+
+        if (!int.TryParse(quantityText, out var quantity) || quantity <= 0)
+        {
+            StatusMessage = "Quantidade inválida. Informe um número inteiro maior que zero.";
+            return false;
+        }
+
+        item.SetQuantity(quantity);
+        NotifyTotals();
+        StatusMessage = "Quantidade atualizada.";
+        return true;
+    }
+
+    public async Task FinalizeAsync(PaymentMethod paymentMethod)
+    {
+        if (!Items.Any())
+        {
+            StatusMessage = "Adicione itens para finalizar a venda.";
+            return;
+        }
 
         var sale = new Sale
         {
             SaleId = Guid.NewGuid(),
             CreatedAt = DateTimeOffset.UtcNow,
-            PaymentMethod = PaymentMethod.Cash,
+            PaymentMethod = paymentMethod,
             Items = Items.Select(x => new SaleItem
             {
                 ProductId = x.ProductId,
@@ -112,7 +142,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         foreach (var item in sale.Items.Zip(Items))
         {
-            for (var i = 1; i < item.Second.Quantity; i++) item.First.IncrementQuantity();
+            item.First.SetQuantity(item.Second.Quantity);
         }
 
         var payload = JsonSerializer.Serialize(new
@@ -127,7 +157,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await _salesRepository.SaveSaleWithOutboxAsync(sale, payload);
         CancelSale();
         var pending = await _outboxRepository.GetPendingCountAsync();
-        StatusMessage = $"Venda finalizada. Outbox pendente: {pending}";
+        StatusMessage = $"Venda finalizada ({paymentMethod}). Outbox pendente: {pending}";
     }
 
     private void ReplaceItems(IReadOnlyCollection<SaleItem> items)
@@ -142,7 +172,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalCents));
         OnPropertyChanged(nameof(TotalFormatted));
         OnPropertyChanged(nameof(ItemCount));
-        FinalizeCommand.RaiseCanExecuteChanged();
+        CancelSaleCommand.RaiseCanExecuteChanged();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
