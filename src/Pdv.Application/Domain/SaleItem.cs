@@ -13,4 +13,14 @@ public sealed class SaleItem
     public decimal Subtotal => SubtotalCents / 100m;
 
     public void IncrementQuantity() => Quantity++;
+
+    public void SetQuantity(int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantidade deve ser maior que zero.");
+        }
+
+        Quantity = quantity;
+    }
 }

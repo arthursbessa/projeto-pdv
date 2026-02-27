@@ -26,7 +26,7 @@ public partial class App : System.Windows.Application
         var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
         Directory.CreateDirectory(dbDirectory);
 
-        options.DatabaseRelativePath = fullDbPath;
+        options.DatabaseFullPath = fullDbPath;
 
         Services = new ServiceCollection()
             .AddPdvInfrastructure(options, fullDbPath)
