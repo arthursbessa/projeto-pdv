@@ -15,7 +15,8 @@ public sealed class InfrastructureSchemaTests
         var dbPath = CreateTempDbPath();
         var factory = new SqliteConnectionFactory(dbPath);
         var productRepository = new ProductCacheRepository(factory);
-        var initializer = new DatabaseInitializer(factory, productRepository);
+        var userRepository = new UserRepository(factory);
+        var initializer = new DatabaseInitializer(factory, productRepository, userRepository);
 
         await initializer.InitializeAsync();
 
@@ -37,7 +38,8 @@ public sealed class InfrastructureSchemaTests
         var dbPath = CreateTempDbPath();
         var factory = new SqliteConnectionFactory(dbPath);
         var productRepository = new ProductCacheRepository(factory);
-        var initializer = new DatabaseInitializer(factory, productRepository);
+        var userRepository = new UserRepository(factory);
+        var initializer = new DatabaseInitializer(factory, productRepository, userRepository);
         var salesRepository = new SalesRepository(factory);
 
         await initializer.InitializeAsync();
