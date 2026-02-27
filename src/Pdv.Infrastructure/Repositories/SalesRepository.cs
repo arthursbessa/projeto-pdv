@@ -18,10 +18,10 @@ public sealed class SalesRepository : ISalesRepository
     {
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        using var tx = connection.BeginTransaction();
 
         var saleCommand = connection.CreateCommand();
-        saleCommand.Transaction = transaction;
+        saleCommand.Transaction = tx;
         saleCommand.CommandText = @"
 INSERT INTO sales (sale_id, created_at, payment_method, total, received_amount)
 VALUES ($saleId, $createdAt, $paymentMethod, $total, $receivedAmount);";
@@ -35,7 +35,7 @@ VALUES ($saleId, $createdAt, $paymentMethod, $total, $receivedAmount);";
         foreach (var item in sale.Items)
         {
             var itemCommand = connection.CreateCommand();
-            itemCommand.Transaction = transaction;
+            itemCommand.Transaction = tx;
             itemCommand.CommandText = @"
 INSERT INTO sale_items (sale_id, product_id, barcode, description, unit_price, quantity, subtotal)
 VALUES ($saleId, $productId, $barcode, $description, $unitPrice, $quantity, $subtotal);";
@@ -50,7 +50,7 @@ VALUES ($saleId, $productId, $barcode, $description, $unitPrice, $quantity, $sub
         }
 
         var outboxCommand = connection.CreateCommand();
-        outboxCommand.Transaction = transaction;
+        outboxCommand.Transaction = tx;
         outboxCommand.CommandText = @"
 INSERT INTO outbox_events (id, type, payload_json, status, attempts, next_retry_at, last_error, created_at, sent_at)
 VALUES ($id, $type, $payloadJson, $status, $attempts, $nextRetryAt, $lastError, $createdAt, $sentAt);";
@@ -66,6 +66,6 @@ VALUES ($id, $type, $payloadJson, $status, $attempts, $nextRetryAt, $lastError, 
         outboxCommand.Parameters.AddWithValue("$sentAt", DBNull.Value);
 
         await outboxCommand.ExecuteNonQueryAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        tx.Commit();
     }
 }
