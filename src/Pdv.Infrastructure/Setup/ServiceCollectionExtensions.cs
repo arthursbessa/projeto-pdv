@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IProductCacheRepository, ProductCacheRepository>();
         services.AddSingleton<ISalesRepository, SalesRepository>();
+        services.AddSingleton<IUserRepository, UserRepository>();
+        services.AddSingleton<ICashRegisterRepository, CashRegisterRepository>();
         services.AddSingleton<IOutboxRepository, OutboxRepository>();
 
         services.AddSingleton<DatabaseInitializer>();

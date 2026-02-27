@@ -9,11 +9,13 @@ public sealed class DatabaseInitializer
 {
     private readonly SqliteConnectionFactory _connectionFactory;
     private readonly IProductCacheRepository _productRepository;
+    private readonly IUserRepository _userRepository;
 
-    public DatabaseInitializer(SqliteConnectionFactory connectionFactory, IProductCacheRepository productRepository)
+    public DatabaseInitializer(SqliteConnectionFactory connectionFactory, IProductCacheRepository productRepository, IUserRepository userRepository)
     {
         _connectionFactory = connectionFactory;
         _productRepository = productRepository;
+        _userRepository = userRepository;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -25,6 +27,7 @@ public sealed class DatabaseInitializer
         await EnsureSchemaEvolutionAsync(connection, cancellationToken);
         await SeedPaymentMethodsAsync(connection, cancellationToken);
         await _productRepository.SeedIfEmptyAsync(ProductSeedData.Create(), cancellationToken);
+        await _userRepository.SeedAdminAsync(cancellationToken);
     }
 
     private static async Task CreateBaseSchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -54,13 +57,27 @@ CREATE TABLE IF NOT EXISTS payment_methods (
     updated_at TEXT NOT NULL
 );
 
+
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    full_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS cash_register_sessions (
     id TEXT PRIMARY KEY,
     opened_at TEXT NOT NULL,
     closed_at TEXT NULL,
     opening_amount_cents INTEGER NOT NULL DEFAULT 0,
     closing_amount_cents INTEGER NULL,
-    status TEXT NOT NULL DEFAULT 'OPEN'
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    business_date TEXT NULL,
+    opened_by_user_id TEXT NULL,
+    closed_by_user_id TEXT NULL
 );
 
 CREATE TABLE IF NOT EXISTS customers (
@@ -129,6 +146,7 @@ CREATE TABLE IF NOT EXISTS outbox_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_active ON products (active);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales (created_at);
 CREATE INDEX IF NOT EXISTS idx_sales_status ON sales (status);
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id);
@@ -151,6 +169,9 @@ CREATE INDEX IF NOT EXISTS idx_outbox_next_retry_at ON outbox_events (next_retry
         await EnsureColumnAsync(connection, "sales", "surcharge_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "notes", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sale_items", "discount_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(connection, "cash_register_sessions", "business_date", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "cash_register_sessions", "opened_by_user_id", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "cash_register_sessions", "closed_by_user_id", "TEXT NULL", cancellationToken);
     }
 
     private static async Task EnsureColumnAsync(SqliteConnection connection, string table, string column, string definition, CancellationToken cancellationToken)

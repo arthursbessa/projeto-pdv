@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pdv.Application.Configuration;
 using Pdv.Infrastructure.Setup;
 using Pdv.Ui.ViewModels;
+using Pdv.Ui.Views;
 
 namespace Pdv.Ui;
 
@@ -30,18 +31,25 @@ public partial class App : System.Windows.Application
 
         Services = new ServiceCollection()
             .AddPdvInfrastructure(options, fullDbPath)
-            .AddSingleton<MainViewModel>()
+            .AddSingleton<SessionContext>()
+            .AddTransient<MainViewModel>()
             .AddTransient<ProductsViewModel>()
+            .AddTransient<UsersViewModel>()
+            .AddTransient<LoginViewModel>()
+            .AddTransient<MenuViewModel>()
             .BuildServiceProvider();
 
         var dbInitializer = Services.GetRequiredService<DatabaseInitializer>();
         await dbInitializer.InitializeAsync();
 
-        var window = new MainWindow
+        var login = new LoginWindow { DataContext = Services.GetRequiredService<LoginViewModel>() };
+        if (login.ShowDialog() != true)
         {
-            DataContext = Services.GetRequiredService<MainViewModel>()
-        };
+            Shutdown();
+            return;
+        }
 
-        window.Show();
+        var menu = new MenuWindow { DataContext = Services.GetRequiredService<MenuViewModel>() };
+        menu.Show();
     }
 }
