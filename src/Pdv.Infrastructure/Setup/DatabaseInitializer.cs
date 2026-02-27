@@ -80,6 +80,17 @@ CREATE TABLE IF NOT EXISTS cash_register_sessions (
     closed_by_user_id TEXT NULL
 );
 
+CREATE TABLE IF NOT EXISTS cash_withdrawals (
+    id TEXT PRIMARY KEY,
+    cash_register_session_id TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    reason TEXT NULL,
+    created_at TEXT NOT NULL,
+    created_by_user_id TEXT NULL,
+    FOREIGN KEY (cash_register_session_id) REFERENCES cash_register_sessions(id),
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+);
+
 CREATE TABLE IF NOT EXISTS customers (
     id TEXT PRIMARY KEY,
     document_number TEXT NULL,
@@ -147,6 +158,7 @@ CREATE TABLE IF NOT EXISTS outbox_events (
 
 CREATE INDEX IF NOT EXISTS idx_products_active ON products (active);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
+CREATE INDEX IF NOT EXISTS idx_cash_withdrawals_session_id ON cash_withdrawals (cash_register_session_id);
 CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales (created_at);
 CREATE INDEX IF NOT EXISTS idx_sales_status ON sales (status);
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id);
@@ -162,6 +174,20 @@ CREATE INDEX IF NOT EXISTS idx_outbox_next_retry_at ON outbox_events (next_retry
 
     private static async Task EnsureSchemaEvolutionAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
+        var createWithdrawals = connection.CreateCommand();
+        createWithdrawals.CommandText = @"
+CREATE TABLE IF NOT EXISTS cash_withdrawals (
+    id TEXT PRIMARY KEY,
+    cash_register_session_id TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    reason TEXT NULL,
+    created_at TEXT NOT NULL,
+    created_by_user_id TEXT NULL,
+    FOREIGN KEY (cash_register_session_id) REFERENCES cash_register_sessions(id),
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+);";
+        await createWithdrawals.ExecuteNonQueryAsync(cancellationToken);
+
         await EnsureColumnAsync(connection, "sales", "payment_method_id", "INTEGER NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "customer_id", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "cash_register_session_id", "TEXT NULL", cancellationToken);
@@ -172,6 +198,8 @@ CREATE INDEX IF NOT EXISTS idx_outbox_next_retry_at ON outbox_events (next_retry
         await EnsureColumnAsync(connection, "cash_register_sessions", "business_date", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_register_sessions", "opened_by_user_id", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_register_sessions", "closed_by_user_id", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "cash_withdrawals", "reason", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "cash_withdrawals", "created_by_user_id", "TEXT NULL", cancellationToken);
     }
 
     private static async Task EnsureColumnAsync(SqliteConnection connection, string table, string column, string definition, CancellationToken cancellationToken)

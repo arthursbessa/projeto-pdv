@@ -54,10 +54,16 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         return session;
     }
 
-    public async Task CloseAsync(string sessionId, int closingAmountCents, string userId, DateTimeOffset now, CancellationToken cancellationToken = default)
+    public async Task CloseAsync(string sessionId, string userId, DateTimeOffset now, CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
+
+        var totalSales = await GetTotalSalesAsync(connection, sessionId, cancellationToken);
+        var totalWithdrawals = await GetTotalWithdrawalsAsync(connection, sessionId, cancellationToken);
+        var openingAmount = await GetOpeningAmountAsync(connection, sessionId, cancellationToken);
+        var closingAmountCents = openingAmount + totalSales - totalWithdrawals;
+
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"UPDATE cash_register_sessions SET status = 'CLOSED', closed_at = $closedAt, closing_amount_cents = $closingAmountCents, closed_by_user_id = $closedByUserId WHERE id = $id AND status = 'OPEN';";
         cmd.Parameters.AddWithValue("$id", sessionId);
@@ -69,6 +75,28 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         {
             throw new InvalidOperationException("Caixa não encontrado ou já está fechado.");
         }
+    }
+
+    public async Task RegisterWithdrawalAsync(string sessionId, int amountCents, string reason, string userId, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        if (amountCents <= 0)
+        {
+            throw new InvalidOperationException("Valor de sangria deve ser maior que zero.");
+        }
+
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = @"INSERT INTO cash_withdrawals (id, cash_register_session_id, amount_cents, reason, created_at, created_by_user_id)
+                            VALUES ($id, $sessionId, $amountCents, $reason, $createdAt, $createdByUserId);";
+        cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+        cmd.Parameters.AddWithValue("$sessionId", sessionId);
+        cmd.Parameters.AddWithValue("$amountCents", amountCents);
+        cmd.Parameters.AddWithValue("$reason", reason);
+        cmd.Parameters.AddWithValue("$createdAt", now.ToString("O"));
+        cmd.Parameters.AddWithValue("$createdByUserId", userId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<SaleSummary>> GetSalesBySessionAsync(string sessionId, CancellationToken cancellationToken = default)
@@ -93,6 +121,72 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyList<SalesReportEntry>> GetSalesReportBySessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+SELECT s.id,
+       s.cash_register_session_id,
+       c.business_date,
+       s.created_at,
+       s.payment_method,
+       s.total_cents,
+       COALESCE(u.full_name, 'Operador não identificado')
+FROM sales s
+LEFT JOIN cash_register_sessions c ON c.id = s.cash_register_session_id
+LEFT JOIN users u ON u.id = c.opened_by_user_id
+WHERE s.cash_register_session_id = $sessionId
+ORDER BY s.created_at DESC;";
+        cmd.Parameters.AddWithValue("$sessionId", sessionId);
+
+        var result = new List<SalesReportEntry>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new SalesReportEntry
+            {
+                SaleId = reader.GetString(0),
+                SessionId = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                BusinessDate = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                CreatedAt = DateTimeOffset.Parse(reader.GetString(3)),
+                PaymentMethod = reader.GetString(4),
+                TotalCents = reader.GetInt32(5),
+                OperatorName = reader.GetString(6)
+            });
+        }
+
+        return result;
+    }
+
+    private static async Task<int> GetOpeningAmountAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
+    {
+        var opening = connection.CreateCommand();
+        opening.CommandText = "SELECT opening_amount_cents FROM cash_register_sessions WHERE id = $sessionId LIMIT 1;";
+        opening.Parameters.AddWithValue("$sessionId", sessionId);
+        var openingValue = await opening.ExecuteScalarAsync(cancellationToken);
+        return openingValue is null || openingValue is DBNull ? 0 : Convert.ToInt32(openingValue);
+    }
+
+    private static async Task<int> GetTotalSalesAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
+    {
+        var sales = connection.CreateCommand();
+        sales.CommandText = "SELECT COALESCE(SUM(total_cents), 0) FROM sales WHERE cash_register_session_id = $sessionId;";
+        sales.Parameters.AddWithValue("$sessionId", sessionId);
+        var salesValue = await sales.ExecuteScalarAsync(cancellationToken);
+        return salesValue is null || salesValue is DBNull ? 0 : Convert.ToInt32(salesValue);
+    }
+
+    private static async Task<int> GetTotalWithdrawalsAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
+    {
+        var withdrawals = connection.CreateCommand();
+        withdrawals.CommandText = "SELECT COALESCE(SUM(amount_cents), 0) FROM cash_withdrawals WHERE cash_register_session_id = $sessionId;";
+        withdrawals.Parameters.AddWithValue("$sessionId", sessionId);
+        var withdrawalValue = await withdrawals.ExecuteScalarAsync(cancellationToken);
+        return withdrawalValue is null || withdrawalValue is DBNull ? 0 : Convert.ToInt32(withdrawalValue);
     }
 
     private static CashRegisterSession ReadSession(Microsoft.Data.Sqlite.SqliteDataReader reader) => new()

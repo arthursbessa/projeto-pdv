@@ -1,7 +1,6 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Pdv.Application.Abstractions;
-using Pdv.Ui.Formatting;
 using Pdv.Ui.ViewModels;
 
 namespace Pdv.Ui.Views;
@@ -20,20 +19,19 @@ public partial class MenuWindow : Window
         };
     }
 
-    private async void OpenCash_Click(object sender, RoutedEventArgs e)
+    private void OpenCashScreen_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is MenuViewModel vm)
-        {
-            await vm.OpenCashRegisterAsync();
-        }
+        new OpenCashWindow { Owner = this, DataContext = DataContext }.ShowDialog();
     }
 
-    private async void CloseCash_Click(object sender, RoutedEventArgs e)
+    private void CloseCashScreen_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is MenuViewModel vm)
-        {
-            await vm.CloseCashRegisterAsync();
-        }
+        new CloseCashWindow { Owner = this, DataContext = DataContext }.ShowDialog();
+    }
+
+    private void OpenWithdrawalScreen_Click(object sender, RoutedEventArgs e)
+    {
+        new CashWithdrawalWindow { Owner = this, DataContext = DataContext }.ShowDialog();
     }
 
     private void OpenPdv_Click(object sender, RoutedEventArgs e)
@@ -62,11 +60,7 @@ public partial class MenuWindow : Window
         }
 
         var repository = App.Services.GetRequiredService<ICashRegisterRepository>();
-        var sales = await repository.GetSalesBySessionAsync(session.Id);
-        var lines = sales.Any()
-            ? string.Join(Environment.NewLine, sales.Select(x => $"{x.CreatedAt:HH:mm} | {x.PaymentMethod} | {MoneyFormatter.FormatFromCents(x.TotalCents)}"))
-            : "Sem vendas para o caixa atual.";
-
-        MessageBox.Show(lines, "Vendas do caixa aberto");
+        var sales = await repository.GetSalesReportBySessionAsync(session.Id);
+        new SalesReportWindow(sales) { Owner = this }.ShowDialog();
     }
 }

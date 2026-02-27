@@ -10,8 +10,6 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private readonly SessionContext _session;
     private readonly ICashRegisterRepository _cashRegisters;
     private string _statusMessage = "Gerencie seu caixa e módulos.";
-    private string _openAmount = "0,00";
-    private string _closeAmount = "0,00";
 
     public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters)
     {
@@ -21,8 +19,6 @@ public sealed class MenuViewModel : INotifyPropertyChanged
 
     public string Username => _session.CurrentUser?.FullName ?? "-";
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
-    public string OpenAmount { get => _openAmount; set => SetField(ref _openAmount, value); }
-    public string CloseAmount { get => _closeAmount; set => SetField(ref _closeAmount, value); }
     public string CashStatus => _session.OpenCashRegister is null ? "Caixa fechado" : $"Caixa aberto em {_session.OpenCashRegister.BusinessDate}";
 
     public async Task LoadAsync()
@@ -35,7 +31,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CashStatus));
     }
 
-    public async Task OpenCashRegisterAsync()
+    public async Task OpenCashRegisterAsync(string openAmount)
     {
         if (_session.CurrentUser is null)
         {
@@ -43,7 +39,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (!MoneyFormatter.TryParseToCents(OpenAmount, out var amount))
+        if (!MoneyFormatter.TryParseToCents(openAmount, out var amount))
         {
             StatusMessage = "Valor de abertura inválido.";
             return;
@@ -69,16 +65,28 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (!MoneyFormatter.TryParseToCents(CloseAmount, out var amount))
-        {
-            StatusMessage = "Valor de fechamento inválido.";
-            return;
-        }
-
-        await _cashRegisters.CloseAsync(_session.OpenCashRegister.Id, amount, _session.CurrentUser.Id, DateTimeOffset.Now);
+        await _cashRegisters.CloseAsync(_session.OpenCashRegister.Id, _session.CurrentUser.Id, DateTimeOffset.Now);
         _session.OpenCashRegister = null;
         StatusMessage = "Caixa encerrado com sucesso.";
         OnPropertyChanged(nameof(CashStatus));
+    }
+
+    public async Task RegisterWithdrawalAsync(string amount, string reason)
+    {
+        if (_session.CurrentUser is null || _session.OpenCashRegister is null)
+        {
+            StatusMessage = "Não há caixa aberto para sangria.";
+            return;
+        }
+
+        if (!MoneyFormatter.TryParseToCents(amount, out var amountCents) || amountCents <= 0)
+        {
+            StatusMessage = "Valor de sangria inválido.";
+            return;
+        }
+
+        await _cashRegisters.RegisterWithdrawalAsync(_session.OpenCashRegister.Id, amountCents, reason, _session.CurrentUser.Id, DateTimeOffset.Now);
+        StatusMessage = "Sangria registrada com sucesso.";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
