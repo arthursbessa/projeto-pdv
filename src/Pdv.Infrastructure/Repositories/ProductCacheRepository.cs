@@ -47,17 +47,17 @@ LIMIT 1;";
     {
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        using var tx = connection.BeginTransaction();
 
         var delete = connection.CreateCommand();
-        delete.Transaction = transaction;
+        delete.Transaction = tx;
         delete.CommandText = "DELETE FROM products_cache;";
         await delete.ExecuteNonQueryAsync(cancellationToken);
 
         foreach (var product in products)
         {
             var insert = connection.CreateCommand();
-            insert.Transaction = transaction;
+            insert.Transaction = tx;
             insert.CommandText = @"
 INSERT INTO products_cache (product_id, barcode, description, price, updated_at)
 VALUES ($productId, $barcode, $description, $price, $updatedAt);";
@@ -69,6 +69,6 @@ VALUES ($productId, $barcode, $description, $price, $updatedAt);";
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await transaction.CommitAsync(cancellationToken);
+        tx.Commit();
     }
 }
