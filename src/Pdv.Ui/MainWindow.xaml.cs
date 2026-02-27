@@ -20,14 +20,6 @@ public partial class MainWindow : Window
         await AddItemFromBarcodeAsync();
     }
 
-    private void BarcodeTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            e.Handled = true;
-        }
-    }
-
     private async void BarcodeTextBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
