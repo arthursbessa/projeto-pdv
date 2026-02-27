@@ -1,6 +1,7 @@
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
 using Pdv.Application.Services;
+using Xunit;
 
 namespace Pdv.Tests;
 
