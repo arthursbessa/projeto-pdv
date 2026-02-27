@@ -1,0 +1,64 @@
+<Window x:Class="Pdv.Ui.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="PDV Desktop" Height="720" Width="1100" WindowStartupLocation="CenterScreen"
+        KeyDown="Window_KeyDown">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Conexão:" FontWeight="Bold" VerticalAlignment="Center" />
+            <TextBlock Text=" {Binding ConnectionStatus}" Margin="6,0,18,0" VerticalAlignment="Center"/>
+            <TextBlock Text="Pendências:" FontWeight="Bold" VerticalAlignment="Center" />
+            <TextBlock Text=" {Binding PendingCount}" Margin="6,0,18,0" VerticalAlignment="Center"/>
+            <Button Content="Sincronizar agora" Command="{Binding SyncNowCommand}" Margin="0,0,8,0"/>
+            <Button Content="Atualizar catálogo" Command="{Binding RefreshCatalogCommand}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="Código de barras" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox x:Name="BarcodeTextBox"
+                     Width="350"
+                     Text="{Binding BarcodeInput, UpdateSourceTrigger=PropertyChanged}"
+                     KeyDown="BarcodeTextBox_KeyDown" />
+            <TextBlock Text="  (F2 Finalizar | F4 Remover | ESC Cancelar)" VerticalAlignment="Center" Margin="8,0,0,0"/>
+        </StackPanel>
+
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding Items}"
+                  SelectedItem="{Binding SelectedItem}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Descrição" Binding="{Binding Description}" Width="*"/>
+                <DataGridTextColumn Header="Qtd" Binding="{Binding Quantity}" Width="80"/>
+                <DataGridTextColumn Header="Preço" Binding="{Binding UnitPrice, StringFormat=N2}" Width="100"/>
+                <DataGridTextColumn Header="Subtotal" Binding="{Binding Subtotal, StringFormat=N2}" Width="120"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,12">
+            <TextBlock Text="Total:" FontSize="22" FontWeight="Bold" Margin="0,0,8,0" />
+            <TextBlock Text="{Binding Total, StringFormat=N2}" FontSize="22" FontWeight="Bold" />
+        </StackPanel>
+
+        <GroupBox Header="Finalização" Grid.Row="4">
+            <StackPanel Orientation="Horizontal" Margin="8">
+                <TextBlock Text="Pagamento" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox Width="150" ItemsSource="{Binding PaymentMethods}" SelectedItem="{Binding SelectedPaymentMethod}" />
+                <TextBlock Text="Valor recebido" VerticalAlignment="Center" Margin="16,0,8,0"/>
+                <TextBox Width="120" Text="{Binding ReceivedAmountInput}" />
+                <Button Content="Finalizar venda (F2)" Command="{Binding FinalizeCommand}" Margin="16,0,0,0"/>
+            </StackPanel>
+        </GroupBox>
+    </Grid>
+</Window>
