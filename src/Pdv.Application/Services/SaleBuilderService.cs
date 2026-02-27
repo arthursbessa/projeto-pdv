@@ -24,7 +24,7 @@ public sealed class SaleBuilderService
         }
 
         var product = await _productCacheRepository.FindByBarcodeAsync(normalized, cancellationToken);
-        if (product is null)
+        if (product is null || !product.Active)
         {
             return (false, "Produto não encontrado no catálogo local.", currentItems.ToArray());
         }
@@ -41,7 +41,7 @@ public sealed class SaleBuilderService
             ProductId = product.ProductId,
             Barcode = product.Barcode,
             Description = product.Description,
-            UnitPrice = product.Price
+            PriceCents = product.PriceCents
         });
 
         return (true, null, currentItems.ToArray());

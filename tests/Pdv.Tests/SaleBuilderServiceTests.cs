@@ -27,22 +27,26 @@ public sealed class SaleBuilderServiceTests
     {
         public Task<ProductCacheItem?> FindByBarcodeAsync(string barcode, CancellationToken cancellationToken = default)
         {
-            if (barcode != "789")
-            {
-                return Task.FromResult<ProductCacheItem?>(null);
-            }
+            if (barcode != "789") return Task.FromResult<ProductCacheItem?>(null);
 
             return Task.FromResult<ProductCacheItem?>(new ProductCacheItem
             {
                 ProductId = "p-1",
                 Barcode = "789",
                 Description = "Produto Teste",
-                Price = 10,
+                PriceCents = 1000,
+                Active = true,
+                CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             });
         }
 
-        public Task ReplaceCatalogAsync(IEnumerable<ProductCacheItem> products, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        public Task<IReadOnlyList<ProductCacheItem>> SearchAsync(string? query, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductCacheItem>>([]);
+        public Task<ProductCacheItem?> FindByIdAsync(string id, CancellationToken cancellationToken = default) => Task.FromResult<ProductCacheItem?>(null);
+        public Task AddAsync(ProductCacheItem product, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task UpdateAsync(ProductCacheItem product, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ToggleActiveAsync(string id, bool active, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<int> CountAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
+        public Task SeedIfEmptyAsync(IEnumerable<ProductCacheItem> products, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

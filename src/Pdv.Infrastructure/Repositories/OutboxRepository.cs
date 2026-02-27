@@ -20,14 +20,13 @@ public sealed class OutboxRepository : IOutboxRepository
 
         var command = connection.CreateCommand();
         command.CommandText = @"
-SELECT id, type, payload_json, status, attempts, next_retry_at, last_error, created_at
+SELECT id, type, payload_json, attempts, next_retry_at, last_error, created_at
 FROM outbox_events
-WHERE status = $pendingStatus
+WHERE status = 'Pending'
   AND (next_retry_at IS NULL OR next_retry_at <= $now)
 ORDER BY created_at
 LIMIT $take;";
 
-        command.Parameters.AddWithValue("$pendingStatus", (int)OutboxStatus.Pending);
         command.Parameters.AddWithValue("$now", now.ToString("O"));
         command.Parameters.AddWithValue("$take", take);
 
@@ -40,11 +39,11 @@ LIMIT $take;";
                 Id = Guid.Parse(reader.GetString(0)),
                 Type = reader.GetString(1),
                 PayloadJson = reader.GetString(2),
-                Status = (OutboxStatus)reader.GetInt32(3),
-                Attempts = reader.GetInt32(4),
-                NextRetryAt = reader.IsDBNull(5) ? null : DateTimeOffset.Parse(reader.GetString(5)),
-                LastError = reader.IsDBNull(6) ? null : reader.GetString(6),
-                CreatedAt = DateTimeOffset.Parse(reader.GetString(7))
+                Status = OutboxStatus.Pending,
+                Attempts = reader.GetInt32(3),
+                NextRetryAt = reader.IsDBNull(4) ? null : DateTimeOffset.Parse(reader.GetString(4)),
+                LastError = reader.IsDBNull(5) ? null : reader.GetString(5),
+                CreatedAt = DateTimeOffset.Parse(reader.GetString(6))
             });
         }
 
@@ -59,9 +58,8 @@ LIMIT $take;";
         var command = connection.CreateCommand();
         command.CommandText = @"
 UPDATE outbox_events
-SET status = $status, sent_at = $sentAt, last_error = NULL
+SET status = 'Sent', sent_at = $sentAt, last_error = NULL
 WHERE id = $id;";
-        command.Parameters.AddWithValue("$status", (int)OutboxStatus.Sent);
         command.Parameters.AddWithValue("$sentAt", sentAt.ToString("O"));
         command.Parameters.AddWithValue("$id", id.ToString());
 
@@ -76,13 +74,12 @@ WHERE id = $id;";
         var command = connection.CreateCommand();
         command.CommandText = @"
 UPDATE outbox_events
-SET status = $status,
+SET status = 'Pending',
     attempts = $attempts,
     next_retry_at = $nextRetryAt,
     last_error = $lastError
 WHERE id = $id;";
 
-        command.Parameters.AddWithValue("$status", (int)OutboxStatus.Pending);
         command.Parameters.AddWithValue("$attempts", attempts);
         command.Parameters.AddWithValue("$nextRetryAt", nextRetryAt.ToString("O"));
         command.Parameters.AddWithValue("$lastError", error);
@@ -97,8 +94,7 @@ WHERE id = $id;";
         await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(1) FROM outbox_events WHERE status = $status;";
-        command.Parameters.AddWithValue("$status", (int)OutboxStatus.Pending);
+        command.CommandText = "SELECT COUNT(1) FROM outbox_events WHERE status = 'Pending';";
 
         var value = await command.ExecuteScalarAsync(cancellationToken);
         return Convert.ToInt32(value);
