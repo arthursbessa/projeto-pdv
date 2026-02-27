@@ -1,4 +1,5 @@
 using System.IO;
+using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pdv.Application.Configuration;
@@ -7,11 +8,11 @@ using Pdv.Ui.ViewModels;
 
 namespace Pdv.Ui;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     public static ServiceProvider Services { get; private set; } = null!;
 
-    protected override async void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
 
