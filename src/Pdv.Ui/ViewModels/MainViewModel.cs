@@ -1,13 +1,13 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows;
-using System.Windows.Threading;
 using Pdv.Application.Abstractions;
+using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
 using Pdv.Application.Services;
+using Pdv.Ui.Formatting;
 
 namespace Pdv.Ui.ViewModels;
 
@@ -16,96 +16,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly SaleBuilderService _saleBuilderService;
     private readonly ISalesRepository _salesRepository;
     private readonly IOutboxRepository _outboxRepository;
-    private readonly ICatalogApiClient _catalogApiClient;
-    private readonly IProductCacheRepository _productCacheRepository;
-    private readonly SyncService _syncService;
-    private readonly DispatcherTimer _syncTimer;
-
+    private readonly string _dbPath;
     private string _barcodeInput = string.Empty;
-    private string _connectionStatus = "Desconhecida";
-    private int _pendingCount;
-    private string? _receivedAmountInput;
-    private PaymentMethod _selectedPaymentMethod = PaymentMethod.Cash;
+    private string _statusMessage = "PDV local iniciado.";
     private SaleItem? _selectedItem;
 
-    public MainViewModel(
-        SaleBuilderService saleBuilderService,
-        ISalesRepository salesRepository,
-        IOutboxRepository outboxRepository,
-        ICatalogApiClient catalogApiClient,
-        IProductCacheRepository productCacheRepository,
-        SyncService syncService,
-        Pdv.Application.Configuration.PdvOptions options)
+    public MainViewModel(SaleBuilderService saleBuilderService, ISalesRepository salesRepository, IOutboxRepository outboxRepository, PdvOptions options)
     {
         _saleBuilderService = saleBuilderService;
         _salesRepository = salesRepository;
         _outboxRepository = outboxRepository;
-        _catalogApiClient = catalogApiClient;
-        _productCacheRepository = productCacheRepository;
-        _syncService = syncService;
+        _dbPath = options.DatabaseRelativePath;
 
-        SyncNowCommand = new RelayCommand(SyncNowAsync);
-        RefreshCatalogCommand = new RelayCommand(RefreshCatalogAsync);
         FinalizeCommand = new RelayCommand(FinalizeAsync, () => Items.Any());
-
-        _syncTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(Math.Max(5, options.SyncIntervalSeconds))
-        };
-        _syncTimer.Tick += async (_, _) => await SyncNowAsync();
-        _syncTimer.Start();
-
-        _ = RefreshPendingCountAsync();
+        RemoveSelectedCommand = new RelayCommand(RemoveSelectedItem, () => SelectedItem is not null);
+        CancelSaleCommand = new RelayCommand(CancelSale);
     }
 
     public ObservableCollection<SaleItem> Items { get; } = [];
-    public RelayCommand SyncNowCommand { get; }
-    public RelayCommand RefreshCatalogCommand { get; }
     public RelayCommand FinalizeCommand { get; }
+    public RelayCommand RemoveSelectedCommand { get; }
+    public RelayCommand CancelSaleCommand { get; }
 
-    public string BarcodeInput
-    {
-        get => _barcodeInput;
-        set => SetField(ref _barcodeInput, value);
-    }
-
-    public string ConnectionStatus
-    {
-        get => _connectionStatus;
-        private set => SetField(ref _connectionStatus, value);
-    }
-
-    public int PendingCount
-    {
-        get => _pendingCount;
-        private set => SetField(ref _pendingCount, value);
-    }
-
-    public decimal Total => Items.Sum(x => x.Subtotal);
-
-    public IReadOnlyList<PaymentMethod> PaymentMethods { get; } =
-    [
-        PaymentMethod.Cash,
-        PaymentMethod.Card,
-        PaymentMethod.Pix
-    ];
-
-    public PaymentMethod SelectedPaymentMethod
-    {
-        get => _selectedPaymentMethod;
-        set => SetField(ref _selectedPaymentMethod, value);
-    }
-
-    public string? ReceivedAmountInput
-    {
-        get => _receivedAmountInput;
-        set => SetField(ref _receivedAmountInput, value);
-    }
+    public string BarcodeInput { get => _barcodeInput; set => SetField(ref _barcodeInput, value); }
+    public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
+    public string OfflineStatus => "Offline Local";
+    public string DatabaseStatus => $"SQLite: {_dbPath}";
+    public int ItemCount => Items.Sum(x => x.Quantity);
+    public int TotalCents => Items.Sum(x => x.SubtotalCents);
+    public string TotalFormatted => MoneyFormatter.FormatFromCents(TotalCents);
 
     public SaleItem? SelectedItem
     {
         get => _selectedItem;
-        set => SetField(ref _selectedItem, value);
+        set
+        {
+            if (SetField(ref _selectedItem, value))
+            {
+                RemoveSelectedCommand.RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public async Task AddBarcodeAsync()
@@ -115,76 +65,54 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (!result.Added)
         {
-            MessageBox.Show(result.Error ?? "Falha ao adicionar item.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Media.SystemSounds.Beep.Play();
+            StatusMessage = result.Error ?? "Falha ao adicionar item.";
             BarcodeInput = string.Empty;
             return;
         }
 
-        Items.Clear();
-        foreach (var item in result.Items)
-        {
-            Items.Add(item);
-        }
-
+        ReplaceItems(result.Items);
         BarcodeInput = string.Empty;
-        OnPropertyChanged(nameof(Total));
-        FinalizeCommand.RaiseCanExecuteChanged();
+        StatusMessage = "Item adicionado.";
     }
 
     public void RemoveSelectedItem()
     {
-        if (SelectedItem is null)
-        {
-            return;
-        }
-
+        if (SelectedItem is null) return;
         Items.Remove(SelectedItem);
-        OnPropertyChanged(nameof(Total));
-        FinalizeCommand.RaiseCanExecuteChanged();
+        SelectedItem = null;
+        NotifyTotals();
+        StatusMessage = "Item removido.";
     }
 
     public void CancelSale()
     {
         Items.Clear();
-        ReceivedAmountInput = null;
-        OnPropertyChanged(nameof(Total));
-        FinalizeCommand.RaiseCanExecuteChanged();
+        NotifyTotals();
+        StatusMessage = "Venda cancelada.";
     }
 
     public async Task FinalizeAsync()
     {
-        if (!Items.Any())
-        {
-            return;
-        }
-
-        decimal? receivedAmount = null;
-        if (decimal.TryParse(ReceivedAmountInput, out var parsed))
-        {
-            receivedAmount = parsed;
-        }
+        if (!Items.Any()) return;
 
         var sale = new Sale
         {
             SaleId = Guid.NewGuid(),
             CreatedAt = DateTimeOffset.UtcNow,
-            PaymentMethod = SelectedPaymentMethod,
-            ReceivedAmount = receivedAmount,
+            PaymentMethod = PaymentMethod.Cash,
             Items = Items.Select(x => new SaleItem
             {
                 ProductId = x.ProductId,
                 Barcode = x.Barcode,
                 Description = x.Description,
-                UnitPrice = x.UnitPrice
+                PriceCents = x.PriceCents
             }).ToArray()
         };
 
         foreach (var item in sale.Items.Zip(Items))
         {
-            for (var i = 1; i < item.Second.Quantity; i++)
-            {
-                item.First.IncrementQuantity();
-            }
+            for (var i = 1; i < item.Second.Quantity; i++) item.First.IncrementQuantity();
         }
 
         var payload = JsonSerializer.Serialize(new
@@ -192,77 +120,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
             sale_id = sale.SaleId,
             created_at = sale.CreatedAt,
             payment_method = sale.PaymentMethod.ToString(),
-            received_amount = sale.ReceivedAmount,
-            total = sale.Total,
-            items = sale.Items.Select(x => new
-            {
-                product_id = x.ProductId,
-                barcode = x.Barcode,
-                description = x.Description,
-                quantity = x.Quantity,
-                unit_price = x.UnitPrice,
-                subtotal = x.Subtotal
-            })
+            total_cents = sale.TotalCents,
+            items = sale.Items.Select(x => new { product_id = x.ProductId, barcode = x.Barcode, description = x.Description, quantity = x.Quantity, price_cents = x.PriceCents, subtotal_cents = x.SubtotalCents })
         });
 
         await _salesRepository.SaveSaleWithOutboxAsync(sale, payload);
         CancelSale();
-        await RefreshPendingCountAsync();
+        var pending = await _outboxRepository.GetPendingCountAsync();
+        StatusMessage = $"Venda finalizada. Outbox pendente: {pending}";
     }
 
-    public async Task SyncNowAsync()
+    private void ReplaceItems(IReadOnlyCollection<SaleItem> items)
     {
-        try
-        {
-            var sent = await _syncService.RunOnceAsync();
-            ConnectionStatus = "Online";
-            await RefreshPendingCountAsync();
-            if (sent > 0)
-            {
-                // intentionally silent
-            }
-        }
-        catch
-        {
-            ConnectionStatus = "Offline";
-        }
+        Items.Clear();
+        foreach (var item in items) Items.Add(item);
+        NotifyTotals();
     }
 
-    public async Task RefreshCatalogAsync()
+    private void NotifyTotals()
     {
-        try
-        {
-            var catalog = await _catalogApiClient.GetCatalogAsync();
-            await _productCacheRepository.ReplaceCatalogAsync(catalog);
-            ConnectionStatus = "Online";
-            MessageBox.Show("Catálogo atualizado com sucesso.", "PDV", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (HttpRequestException)
-        {
-            ConnectionStatus = "Offline";
-            MessageBox.Show("Sem internet. Mantendo catálogo local.", "PDV", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private async Task RefreshPendingCountAsync()
-    {
-        PendingCount = await _outboxRepository.GetPendingCountAsync();
+        OnPropertyChanged(nameof(TotalCents));
+        OnPropertyChanged(nameof(TotalFormatted));
+        OnPropertyChanged(nameof(ItemCount));
+        FinalizeCommand.RaiseCanExecuteChanged();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-        {
-            return false;
-        }
-
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
         OnPropertyChanged(propertyName);
         return true;

@@ -22,14 +22,17 @@ public partial class App : System.Windows.Application
             .Build();
 
         var options = configuration.GetSection("Pdv").Get<PdvOptions>() ?? new PdvOptions();
-        var dbPath = Path.Combine(AppContext.BaseDirectory, "pdv-local.db");
+        var fullDbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, options.DatabaseRelativePath));
+        var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
+        Directory.CreateDirectory(dbDirectory);
 
-        var services = new ServiceCollection()
-            .AddPdvInfrastructure(options, dbPath)
+        options.DatabaseRelativePath = fullDbPath;
+
+        Services = new ServiceCollection()
+            .AddPdvInfrastructure(options, fullDbPath)
             .AddSingleton<MainViewModel>()
+            .AddTransient<ProductsViewModel>()
             .BuildServiceProvider();
-
-        Services = services;
 
         var dbInitializer = Services.GetRequiredService<DatabaseInitializer>();
         await dbInitializer.InitializeAsync();
