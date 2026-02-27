@@ -22,12 +22,13 @@ public sealed class SalesRepository : ISalesRepository
         var saleCommand = connection.CreateCommand();
         saleCommand.Transaction = tx;
         saleCommand.CommandText = @"
-INSERT INTO sales (id, created_at, total_cents, payment_method, status)
-VALUES ($id, $createdAt, $totalCents, $paymentMethod, 'COMPLETED');";
+INSERT INTO sales (id, created_at, total_cents, payment_method, payment_method_id, status)
+VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLETED');";
         saleCommand.Parameters.AddWithValue("$id", sale.SaleId.ToString());
         saleCommand.Parameters.AddWithValue("$createdAt", sale.CreatedAt.ToString("O"));
         saleCommand.Parameters.AddWithValue("$totalCents", sale.TotalCents);
         saleCommand.Parameters.AddWithValue("$paymentMethod", sale.PaymentMethod.ToString());
+        saleCommand.Parameters.AddWithValue("$paymentMethodId", (int)sale.PaymentMethod);
         await saleCommand.ExecuteNonQueryAsync(cancellationToken);
 
         foreach (var item in sale.Items)
@@ -47,6 +48,18 @@ VALUES ($id, $saleId, $productId, $barcode, $description, $quantity, $priceCents
             itemCommand.Parameters.AddWithValue("$subtotalCents", item.SubtotalCents);
             await itemCommand.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        var paymentCommand = connection.CreateCommand();
+        paymentCommand.Transaction = tx;
+        paymentCommand.CommandText = @"
+INSERT INTO sale_payments (id, sale_id, payment_method_id, amount_cents, paid_at)
+VALUES ($id, $saleId, $paymentMethodId, $amountCents, $paidAt);";
+        paymentCommand.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+        paymentCommand.Parameters.AddWithValue("$saleId", sale.SaleId.ToString());
+        paymentCommand.Parameters.AddWithValue("$paymentMethodId", (int)sale.PaymentMethod);
+        paymentCommand.Parameters.AddWithValue("$amountCents", sale.TotalCents);
+        paymentCommand.Parameters.AddWithValue("$paidAt", DateTimeOffset.UtcNow.ToString("O"));
+        await paymentCommand.ExecuteNonQueryAsync(cancellationToken);
 
         var outboxCommand = connection.CreateCommand();
         outboxCommand.Transaction = tx;

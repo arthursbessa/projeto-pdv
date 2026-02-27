@@ -60,6 +60,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task AddBarcodeAsync()
     {
+        BarcodeInput = BarcodeInput.Trim();
+
+        if (string.IsNullOrWhiteSpace(BarcodeInput))
+        {
+            StatusMessage = "Informe um código de barras para adicionar.";
+            return;
+        }
+
         var temp = Items.ToList();
         var result = await _saleBuilderService.AddByBarcodeAsync(BarcodeInput, temp);
 
