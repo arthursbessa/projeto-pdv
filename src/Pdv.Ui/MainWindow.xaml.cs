@@ -1,9 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Pdv.Ui.ViewModels;
-using Pdv.Ui.Views;
 
 namespace Pdv.Ui;
 
@@ -12,7 +10,15 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Loaded += (_, _) => FocusBarcode();
+        Loaded += async (_, _) =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                await vm.RefreshCatalogAsync();
+            }
+
+            FocusBarcode();
+        };
     }
 
     private async void AddItem_Click(object sender, RoutedEventArgs e)
@@ -113,17 +119,6 @@ public partial class MainWindow : Window
             ItemsDataGrid.Items.Refresh();
         }
 
-        FocusBarcode();
-    }
-
-    private void OpenProducts_Click(object sender, RoutedEventArgs e)
-    {
-        var window = new ProductsWindow
-        {
-            Owner = this,
-            DataContext = App.Services.GetRequiredService<ProductsViewModel>()
-        };
-        window.ShowDialog();
         FocusBarcode();
     }
 

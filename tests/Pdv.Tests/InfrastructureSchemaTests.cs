@@ -14,9 +14,7 @@ public sealed class InfrastructureSchemaTests
     {
         var dbPath = CreateTempDbPath();
         var factory = new SqliteConnectionFactory(dbPath);
-        var productRepository = new ProductCacheRepository(factory);
-        var userRepository = new UserRepository(factory);
-        var initializer = new DatabaseInitializer(factory, productRepository, userRepository);
+        var initializer = new DatabaseInitializer(factory);
 
         await initializer.InitializeAsync();
 
@@ -37,12 +35,22 @@ public sealed class InfrastructureSchemaTests
     {
         var dbPath = CreateTempDbPath();
         var factory = new SqliteConnectionFactory(dbPath);
-        var productRepository = new ProductCacheRepository(factory);
-        var userRepository = new UserRepository(factory);
-        var initializer = new DatabaseInitializer(factory, productRepository, userRepository);
+        var initializer = new DatabaseInitializer(factory);
         var salesRepository = new SalesRepository(factory);
+        var productRepository = new ProductCacheRepository(factory);
 
         await initializer.InitializeAsync();
+
+        await productRepository.AddAsync(new ProductCacheItem
+        {
+            ProductId = Guid.NewGuid().ToString(),
+            Barcode = "789000000001",
+            Description = "Produto Teste",
+            PriceCents = 1599,
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
 
         var product = (await productRepository.FindByBarcodeAsync("789000000001"))!;
         var sale = new Sale
