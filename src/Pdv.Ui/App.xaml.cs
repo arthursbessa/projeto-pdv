@@ -33,8 +33,6 @@ public partial class App : System.Windows.Application
             .AddPdvInfrastructure(options, fullDbPath)
             .AddSingleton<SessionContext>()
             .AddTransient<MainViewModel>()
-            .AddTransient<ProductsViewModel>()
-            .AddTransient<UsersViewModel>()
             .AddTransient<LoginViewModel>()
             .AddTransient<MenuViewModel>()
             .BuildServiceProvider();

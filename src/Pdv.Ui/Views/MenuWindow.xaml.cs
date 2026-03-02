@@ -40,16 +40,6 @@ public partial class MenuWindow : Window
         window.ShowDialog();
     }
 
-    private void OpenProducts_Click(object sender, RoutedEventArgs e)
-    {
-        new ProductsWindow { Owner = this, DataContext = App.Services.GetRequiredService<ProductsViewModel>() }.ShowDialog();
-    }
-
-    private void OpenUsers_Click(object sender, RoutedEventArgs e)
-    {
-        new UsersWindow { Owner = this, DataContext = App.Services.GetRequiredService<UsersViewModel>() }.ShowDialog();
-    }
-
     private async void OpenSales_Click(object sender, RoutedEventArgs e)
     {
         var session = App.Services.GetRequiredService<SessionContext>().OpenCashRegister;

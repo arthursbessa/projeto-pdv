@@ -1,5 +1,4 @@
 using Microsoft.Data.Sqlite;
-using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
 using Pdv.Infrastructure.Persistence;
 
@@ -8,14 +7,9 @@ namespace Pdv.Infrastructure.Setup;
 public sealed class DatabaseInitializer
 {
     private readonly SqliteConnectionFactory _connectionFactory;
-    private readonly IProductCacheRepository _productRepository;
-    private readonly IUserRepository _userRepository;
-
-    public DatabaseInitializer(SqliteConnectionFactory connectionFactory, IProductCacheRepository productRepository, IUserRepository userRepository)
+    public DatabaseInitializer(SqliteConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
-        _productRepository = productRepository;
-        _userRepository = userRepository;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -26,8 +20,6 @@ public sealed class DatabaseInitializer
         await CreateBaseSchemaAsync(connection, cancellationToken);
         await EnsureSchemaEvolutionAsync(connection, cancellationToken);
         await SeedPaymentMethodsAsync(connection, cancellationToken);
-        await _productRepository.SeedIfEmptyAsync(ProductSeedData.Create(), cancellationToken);
-        await _userRepository.SeedAdminAsync(cancellationToken);
     }
 
     private static async Task CreateBaseSchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)

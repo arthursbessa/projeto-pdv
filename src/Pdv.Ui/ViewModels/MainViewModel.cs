@@ -15,16 +15,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly SaleBuilderService _saleBuilderService;
     private readonly ISalesRepository _salesRepository;
     private readonly IOutboxRepository _outboxRepository;
+    private readonly IProductCacheRepository _productCacheRepository;
+    private readonly ICatalogApiClient _catalogApiClient;
+    private readonly SyncService _syncService;
     private readonly SessionContext _session;
     private string _barcodeInput = string.Empty;
-    private string _statusMessage = "PDV local iniciado.";
+    private string _statusMessage = "PDV iniciado.";
     private SaleItem? _selectedItem;
 
-    public MainViewModel(SaleBuilderService saleBuilderService, ISalesRepository salesRepository, IOutboxRepository outboxRepository, PdvOptions options, SessionContext session)
+    public MainViewModel(
+        SaleBuilderService saleBuilderService,
+        ISalesRepository salesRepository,
+        IOutboxRepository outboxRepository,
+        IProductCacheRepository productCacheRepository,
+        ICatalogApiClient catalogApiClient,
+        SyncService syncService,
+        PdvOptions options,
+        SessionContext session)
     {
         _saleBuilderService = saleBuilderService;
         _salesRepository = salesRepository;
         _outboxRepository = outboxRepository;
+        _productCacheRepository = productCacheRepository;
+        _catalogApiClient = catalogApiClient;
+        _syncService = syncService;
         _session = session;
 
         DatabaseRelativePath = $"./{options.DatabaseRelativePath.Replace('\\', '/')}";
@@ -40,10 +54,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string BarcodeInput { get => _barcodeInput; set => SetField(ref _barcodeInput, value); }
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
-    public string OfflineStatus => "Modo Local";
+    public string OfflineStatus => "Integrado ao Lovable";
     public string DatabaseRelativePath { get; }
     public string DatabaseFullPath { get; }
-    public string DatabaseStatus => $"Banco: {DatabaseRelativePath}";
+    public string DatabaseStatus => $"Cache local: {DatabaseRelativePath}";
     public int ItemCount => Items.Sum(x => x.Quantity);
     public int TotalCents => Items.Sum(x => x.SubtotalCents);
     public string TotalFormatted => MoneyFormatter.FormatFromCents(TotalCents);
@@ -57,6 +71,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 RemoveSelectedCommand.RaiseCanExecuteChanged();
             }
+        }
+    }
+
+    public async Task RefreshCatalogAsync()
+    {
+        try
+        {
+            var remoteProducts = await _catalogApiClient.GetCatalogAsync();
+            foreach (var product in remoteProducts)
+            {
+                var existing = await _productCacheRepository.FindByIdAsync(product.ProductId);
+                if (existing is null)
+                {
+                    await _productCacheRepository.AddAsync(product);
+                }
+                else
+                {
+                    await _productCacheRepository.UpdateAsync(product);
+                }
+            }
+
+            StatusMessage = $"Catálogo sincronizado: {remoteProducts.Count} item(ns).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Falha ao atualizar catálogo: {ex.Message}";
         }
     }
 
@@ -175,17 +215,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var payload = JsonSerializer.Serialize(new
         {
-            sale_id = sale.SaleId,
-            created_at = sale.CreatedAt,
-            payment_method = sale.PaymentMethod.ToString(),
-            total_cents = sale.TotalCents,
-            items = sale.Items.Select(x => new { product_id = x.ProductId, barcode = x.Barcode, description = x.Description, quantity = x.Quantity, price_cents = x.PriceCents, subtotal_cents = x.SubtotalCents })
+            payment_method = sale.PaymentMethod.ToString().ToLowerInvariant(),
+            items = sale.Items.Select(x => new { product_id = x.ProductId, quantity = x.Quantity })
         });
 
         await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
+        var sent = await _syncService.RunOnceAsync();
+
         CancelSale();
         var pending = await _outboxRepository.GetPendingCountAsync();
-        StatusMessage = $"Venda finalizada ({paymentMethod}). Outbox pendente: {pending}";
+        StatusMessage = $"Venda finalizada ({paymentMethod}). Enviadas agora: {sent}. Outbox pendente: {pending}";
     }
 
     private void ReplaceItems(IReadOnlyCollection<SaleItem> items)

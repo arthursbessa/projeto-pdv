@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Services;
+using Pdv.Infrastructure.Api;
 using Pdv.Infrastructure.Persistence;
 using Pdv.Infrastructure.Repositories;
 
@@ -14,9 +15,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton(new SqliteConnectionFactory(dbPath));
 
+        services.AddHttpClient<ICatalogApiClient, HttpCatalogApiClient>();
+        services.AddHttpClient<ISalesApiClient, HttpSalesApiClient>();
+        services.AddHttpClient<IAuthApiClient, HttpAuthApiClient>();
+
         services.AddSingleton<IProductCacheRepository, ProductCacheRepository>();
         services.AddSingleton<ISalesRepository, SalesRepository>();
-        services.AddSingleton<IUserRepository, UserRepository>();
         services.AddSingleton<ICashRegisterRepository, CashRegisterRepository>();
         services.AddSingleton<IOutboxRepository, OutboxRepository>();
 

@@ -1,6 +1,6 @@
 # PDV Desktop (WPF + SQLite local)
 
-Aplicação de PDV WPF operando **100% local/offline**, sem APIs de hardware específicas para leitor: o scanner funciona como teclado USB (HID keyboard).
+Aplicação de PDV WPF com cache local SQLite e integração com o backend Lovable/Supabase para autenticação, catálogo e envio de vendas. O scanner funciona como teclado USB (HID keyboard).
 
 ## O que está implementado
 
@@ -14,15 +14,28 @@ Aplicação de PDV WPF operando **100% local/offline**, sem APIs de hardware esp
   - limpa venda após finalizar/cancelar e retorna foco para o campo de código.
 - Feedback de operação na barra de status (sucesso/erro/validação).
 - Banco local único com criação automática de pasta, arquivo, schema e índices no primeiro run.
-- Seed automático com 20 produtos de exemplo (barcode numérico de 13 dígitos) quando `products` está vazia.
-- Tela de **Cadastro de Produtos** (listar, buscar, adicionar, editar, ativar/desativar).
+- Sincronização do catálogo remoto via endpoint `GET /pdv-catalog` com token `x-pdv-token`, armazenando cache local para operação do checkout.
+- Envio de vendas para o backend via outbox local e endpoint `POST /pdv-sales`.
+- Login usando as mesmas credenciais do Lovable (Supabase Auth).
 
 ## Estrutura
 
-- `src/Pdv.Ui`: interface WPF (PDV + cadastro de produtos).
+- `src/Pdv.Ui`: interface WPF (menu, login Lovable e PDV).
 - `src/Pdv.Application`: domínio e regras de aplicação.
 - `src/Pdv.Infrastructure`: SQLite, schema, seed e repositórios.
 - `tests/Pdv.Tests`: testes unitários.
+
+
+## Configuração de integração (appsettings)
+
+Arquivo: `src/Pdv.Ui/appsettings.json`
+
+- `Pdv:FunctionsBaseUrl`: URL base das Edge Functions do Supabase (ex: `https://<project>.supabase.co/functions/v1`).
+- `Pdv:TerminalToken`: token do terminal PDV (`x-pdv-token`).
+- `Pdv:SupabaseBaseUrl`: URL base do projeto Supabase para autenticação.
+- `Pdv:SupabaseAnonKey`: chave `anon` do Supabase (necessária para login).
+
+> O PDV não possui mais telas de cadastro de usuários e produtos. Esses cadastros e gestão ficam no painel Lovable.
 
 ## Como rodar
 

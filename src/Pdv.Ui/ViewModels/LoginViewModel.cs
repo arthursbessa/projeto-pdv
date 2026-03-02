@@ -6,15 +6,15 @@ namespace Pdv.Ui.ViewModels;
 
 public sealed class LoginViewModel : INotifyPropertyChanged
 {
-    private readonly IUserRepository _users;
+    private readonly IAuthApiClient _authApiClient;
     private readonly SessionContext _session;
-    private string _username = "admin";
-    private string _password = "admin";
-    private string _statusMessage = "Informe suas credenciais.";
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+    private string _statusMessage = "Informe as credenciais do Lovable.";
 
-    public LoginViewModel(IUserRepository users, SessionContext session)
+    public LoginViewModel(IAuthApiClient authApiClient, SessionContext session)
     {
-        _users = users;
+        _authApiClient = authApiClient;
         _session = session;
     }
 
@@ -24,16 +24,24 @@ public sealed class LoginViewModel : INotifyPropertyChanged
 
     public async Task<bool> LoginAsync()
     {
-        var user = await _users.AuthenticateAsync(Username, Password);
-        if (user is null)
+        try
         {
-            StatusMessage = "Usuário ou senha inválidos.";
+            var user = await _authApiClient.AuthenticateAsync(Username, Password);
+            if (user is null)
+            {
+                StatusMessage = "Usuário ou senha inválidos.";
+                return false;
+            }
+
+            _session.CurrentUser = user;
+            StatusMessage = $"Bem-vindo, {user.FullName}.";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Falha no login remoto: {ex.Message}";
             return false;
         }
-
-        _session.CurrentUser = user;
-        StatusMessage = $"Bem-vindo, {user.FullName}.";
-        return true;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

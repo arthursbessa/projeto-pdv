@@ -8,7 +8,6 @@ public partial class LoginWindow : Window
     public LoginWindow()
     {
         InitializeComponent();
-        Loaded += (_, _) => PasswordInput.Password = "admin";
     }
 
     private void PasswordInput_OnPasswordChanged(object sender, RoutedEventArgs e)
