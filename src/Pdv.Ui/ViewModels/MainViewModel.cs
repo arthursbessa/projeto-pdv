@@ -261,11 +261,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             });
 
             await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
-            var sent = await _syncService.RunOnceAsync();
 
             CancelSale();
             var pending = await _outboxRepository.GetPendingCountAsync();
-            StatusMessage = $"Venda finalizada ({paymentMethod}). Enviadas agora: {sent}. Outbox pendente: {pending}";
+            StatusMessage = $"Venda finalizada ({paymentMethod}) e salva offline. Outbox pendente: {pending}";
         }
         finally
         {
