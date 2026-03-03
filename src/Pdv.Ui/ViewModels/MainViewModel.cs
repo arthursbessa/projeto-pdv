@@ -22,6 +22,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _barcodeInput = string.Empty;
     private string _statusMessage = "PDV iniciado.";
     private SaleItem? _selectedItem;
+    private bool _isBusy;
 
     public MainViewModel(
         SaleBuilderService saleBuilderService,
@@ -54,7 +55,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string BarcodeInput { get => _barcodeInput; set => SetField(ref _barcodeInput, value); }
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
-    public string OfflineStatus => "Integrado ao Lovable";
+    public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
+    public string OfflineStatus => "Operação offline com integração Lovable";
     public string DatabaseRelativePath { get; }
     public string DatabaseFullPath { get; }
     public string DatabaseStatus => $"Cache local: {DatabaseRelativePath}";
@@ -76,8 +78,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task RefreshCatalogAsync()
     {
+        if (IsBusy) return;
+
+        IsBusy = true;
         try
         {
+            StatusMessage = "Sincronizando catálogo...";
             var remoteProducts = await _catalogApiClient.GetCatalogAsync();
             foreach (var product in remoteProducts)
             {
@@ -97,6 +103,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             StatusMessage = $"Falha ao atualizar catálogo: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task SyncSalesAsync()
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        try
+        {
+            StatusMessage = "Integrando vendas pendentes...";
+            var sent = await _syncService.RunOnceAsync();
+            var pending = await _outboxRepository.GetPendingCountAsync();
+            StatusMessage = $"Integração concluída. Enviadas: {sent}. Pendentes: {pending}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Falha na integração: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
@@ -176,6 +208,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task FinalizeAsync(PaymentMethod paymentMethod)
     {
+        if (IsBusy)
+        {
+            return;
+        }
+
         if (_session.OpenCashRegister is null)
         {
             StatusMessage = "Venda bloqueada: nenhum caixa aberto.";
@@ -194,37 +231,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var sale = new Sale
+        IsBusy = true;
+        try
         {
-            SaleId = Guid.NewGuid(),
-            CreatedAt = DateTimeOffset.UtcNow,
-            PaymentMethod = paymentMethod,
-            Items = Items.Select(x => new SaleItem
+            StatusMessage = "Finalizando venda...";
+            var sale = new Sale
             {
-                ProductId = x.ProductId,
-                Barcode = x.Barcode,
-                Description = x.Description,
-                PriceCents = x.PriceCents
-            }).ToArray()
-        };
+                SaleId = Guid.NewGuid(),
+                CreatedAt = DateTimeOffset.UtcNow,
+                PaymentMethod = paymentMethod,
+                Items = Items.Select(x => new SaleItem
+                {
+                    ProductId = x.ProductId,
+                    Barcode = x.Barcode,
+                    Description = x.Description,
+                    PriceCents = x.PriceCents
+                }).ToArray()
+            };
 
-        foreach (var item in sale.Items.Zip(Items))
-        {
-            item.First.SetQuantity(item.Second.Quantity);
+            foreach (var item in sale.Items.Zip(Items))
+            {
+                item.First.SetQuantity(item.Second.Quantity);
+            }
+
+            var payload = JsonSerializer.Serialize(new
+            {
+                payment_method = sale.PaymentMethod.ToString().ToLowerInvariant(),
+                items = sale.Items.Select(x => new { product_id = x.ProductId, quantity = x.Quantity })
+            });
+
+            await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
+            var sent = await _syncService.RunOnceAsync();
+
+            CancelSale();
+            var pending = await _outboxRepository.GetPendingCountAsync();
+            StatusMessage = $"Venda finalizada ({paymentMethod}). Enviadas agora: {sent}. Outbox pendente: {pending}";
         }
-
-        var payload = JsonSerializer.Serialize(new
+        finally
         {
-            payment_method = sale.PaymentMethod.ToString().ToLowerInvariant(),
-            items = sale.Items.Select(x => new { product_id = x.ProductId, quantity = x.Quantity })
-        });
-
-        await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
-        var sent = await _syncService.RunOnceAsync();
-
-        CancelSale();
-        var pending = await _outboxRepository.GetPendingCountAsync();
-        StatusMessage = $"Venda finalizada ({paymentMethod}). Enviadas agora: {sent}. Outbox pendente: {pending}";
+            IsBusy = false;
+        }
     }
 
     private void ReplaceItems(IReadOnlyCollection<SaleItem> items)
