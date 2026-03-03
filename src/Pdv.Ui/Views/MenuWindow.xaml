@@ -7,6 +7,9 @@
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
         Background="#0B1220">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+    </Window.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -45,11 +48,15 @@
                 <Button Content="Acessar PDV" Click="OpenPdv_Click" Margin="10" Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="18"/>
                 <Button Content="Relatório de vendas" Click="OpenSales_Click" Margin="10" Background="#14B8A6" Foreground="White" FontWeight="Bold" FontSize="18"/>
                 <Button Content="Relatório de caixa" Click="OpenCashReport_Click" Margin="10" Background="#0891B2" Foreground="White" FontWeight="Bold" FontSize="18"/>
+                <Button Content="Integrar dados" Click="IntegrateData_Click" Margin="10" Background="#7C3AED" Foreground="White" FontWeight="Bold" FontSize="18"/>
             </UniformGrid>
         </Grid>
 
         <Border Grid.Row="2" Background="#0F172A" CornerRadius="10" Padding="12" Margin="0,16,0,0">
-            <TextBlock Text="{Binding StatusMessage}" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+            <StackPanel>
+                <ProgressBar Height="6" Margin="0,0,0,8" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
+                <TextBlock Text="{Binding StatusMessage}" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

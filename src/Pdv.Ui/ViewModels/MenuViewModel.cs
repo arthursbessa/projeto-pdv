@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
+using Pdv.Application.Services;
 using Pdv.Ui.Formatting;
 
 namespace Pdv.Ui.ViewModels;
@@ -9,26 +10,50 @@ public sealed class MenuViewModel : INotifyPropertyChanged
 {
     private readonly SessionContext _session;
     private readonly ICashRegisterRepository _cashRegisters;
+    private readonly SyncService _syncService;
+    private readonly IOutboxRepository _outboxRepository;
     private string _statusMessage = "Gerencie seu caixa e módulos.";
+    private bool _isBusy;
 
-    public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters)
+    public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters, SyncService syncService, IOutboxRepository outboxRepository)
     {
         _session = session;
         _cashRegisters = cashRegisters;
+        _syncService = syncService;
+        _outboxRepository = outboxRepository;
     }
 
     public string Username => _session.CurrentUser?.FullName ?? "-";
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
+    public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
     public string CashStatus => _session.OpenCashRegister is null ? "Caixa fechado" : $"Caixa aberto em {_session.OpenCashRegister.BusinessDate}";
 
     public async Task LoadAsync()
     {
         _session.OpenCashRegister = await _cashRegisters.GetOpenSessionAsync();
-        if (_session.OpenCashRegister is not null && _session.OpenCashRegister.BusinessDate != DateTimeOffset.Now.ToString("yyyy-MM-dd"))
-        {
-            StatusMessage = "ATENÇÃO: existe um caixa aberto de outro dia. Feche-o antes de abrir novo caixa.";
-        }
         OnPropertyChanged(nameof(CashStatus));
+    }
+
+    public async Task IntegratePendingSalesAsync()
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        try
+        {
+            StatusMessage = "Integrando vendas pendentes...";
+            var sent = await _syncService.RunOnceAsync();
+            var pending = await _outboxRepository.GetPendingCountAsync();
+            StatusMessage = $"Integração concluída. Enviadas: {sent}. Pendentes: {pending}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Falha ao integrar dados: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     public async Task OpenCashRegisterAsync(string openAmount)
