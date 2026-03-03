@@ -10,27 +10,38 @@ public sealed class MenuViewModel : INotifyPropertyChanged
 {
     private readonly SessionContext _session;
     private readonly ICashRegisterRepository _cashRegisters;
-    private readonly SyncService _syncService;
-    private readonly IOutboxRepository _outboxRepository;
+    private readonly DataIntegrationService _dataIntegrationService;
+    private readonly IStoreSettingsRepository _storeSettingsRepository;
     private string _statusMessage = "Gerencie seu caixa e módulos.";
     private bool _isBusy;
+    private string _storeName = "Minha Loja";
+    private string _storeLogoPath = string.Empty;
 
-    public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters, SyncService syncService, IOutboxRepository outboxRepository)
+    public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters, DataIntegrationService dataIntegrationService, IStoreSettingsRepository storeSettingsRepository)
     {
         _session = session;
         _cashRegisters = cashRegisters;
-        _syncService = syncService;
-        _outboxRepository = outboxRepository;
+        _dataIntegrationService = dataIntegrationService;
+        _storeSettingsRepository = storeSettingsRepository;
     }
 
     public string Username => _session.CurrentUser?.FullName ?? "-";
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
     public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
+    public string StoreName { get => _storeName; set => SetField(ref _storeName, value); }
+    public string StoreLogoPath { get => _storeLogoPath; set => SetField(ref _storeLogoPath, value); }
     public string CashStatus => _session.OpenCashRegister is null ? "Caixa fechado" : $"Caixa aberto em {_session.OpenCashRegister.BusinessDate}";
 
     public async Task LoadAsync()
     {
         _session.OpenCashRegister = await _cashRegisters.GetOpenSessionAsync();
+        var settings = await _storeSettingsRepository.GetCurrentAsync();
+        if (settings is not null)
+        {
+            StoreName = settings.StoreName;
+            StoreLogoPath = settings.LogoLocalPath;
+        }
+
         OnPropertyChanged(nameof(CashStatus));
     }
 
@@ -41,10 +52,16 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            StatusMessage = "Integrando vendas pendentes...";
-            var sent = await _syncService.RunOnceAsync();
-            var pending = await _outboxRepository.GetPendingCountAsync();
-            StatusMessage = $"Integração concluída. Enviadas: {sent}. Pendentes: {pending}.";
+            StatusMessage = "Integrando vendas, usuários e configurações...";
+            var result = await _dataIntegrationService.IntegrateAllAsync();
+            var settings = await _storeSettingsRepository.GetCurrentAsync();
+            if (settings is not null)
+            {
+                StoreName = settings.StoreName;
+                StoreLogoPath = settings.LogoLocalPath;
+            }
+
+            StatusMessage = $"Integração concluída. Vendas: {result.SentSales} enviadas ({result.PendingSales} pendentes). Usuários sincronizados: {result.SyncedUsers}. Configurações: {(result.StoreSettingsSynced ? "ok" : "sem atualização")}.";
         }
         catch (Exception ex)
         {

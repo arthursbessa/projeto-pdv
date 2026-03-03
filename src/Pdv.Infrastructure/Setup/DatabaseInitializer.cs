@@ -60,6 +60,18 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS store_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    store_name TEXT NOT NULL,
+    cnpj TEXT NOT NULL,
+    address TEXT NOT NULL,
+    timezone TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    logo_url TEXT NOT NULL,
+    logo_local_path TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS cash_register_sessions (
     id TEXT PRIMARY KEY,
     opened_at TEXT NOT NULL,
@@ -179,6 +191,21 @@ CREATE TABLE IF NOT EXISTS cash_withdrawals (
     FOREIGN KEY (created_by_user_id) REFERENCES users(id)
 );";
         await createWithdrawals.ExecuteNonQueryAsync(cancellationToken);
+
+        var createStoreSettings = connection.CreateCommand();
+        createStoreSettings.CommandText = @"
+CREATE TABLE IF NOT EXISTS store_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    store_name TEXT NOT NULL,
+    cnpj TEXT NOT NULL,
+    address TEXT NOT NULL,
+    timezone TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    logo_url TEXT NOT NULL,
+    logo_local_path TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);";
+        await createStoreSettings.ExecuteNonQueryAsync(cancellationToken);
 
         await EnsureColumnAsync(connection, "sales", "payment_method_id", "INTEGER NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "customer_id", "TEXT NULL", cancellationToken);

@@ -8,6 +8,8 @@ namespace Pdv.Infrastructure.Repositories;
 
 public sealed class UserRepository : IUserRepository
 {
+    private const string EncryptedPrefix = "enc:";
+    private static readonly byte[] EncryptionKey = SHA256.HashData(Encoding.UTF8.GetBytes(Environment.MachineName));
     private readonly SqliteConnectionFactory _connectionFactory;
 
     public UserRepository(SqliteConnectionFactory connectionFactory)
@@ -31,7 +33,8 @@ public sealed class UserRepository : IUserRepository
         }
 
         var user = ReadUser(reader);
-        if (!user.Active || user.PasswordHash != HashPassword(password))
+        var passwordHash = DecryptHashIfNeeded(user.PasswordHash);
+        if (!user.Active || passwordHash != HashPassword(password))
         {
             return null;
         }
@@ -78,7 +81,7 @@ public sealed class UserRepository : IUserRepository
         await connection.OpenAsync(cancellationToken);
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"INSERT INTO users (id, username, full_name, password_hash, active, created_at, updated_at) VALUES ($id, $username, $fullName, $passwordHash, $active, $createdAt, $updatedAt);";
-        BindUser(cmd, user);
+        BindUser(cmd, user, encryptPasswordHash: false);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -88,7 +91,7 @@ public sealed class UserRepository : IUserRepository
         await connection.OpenAsync(cancellationToken);
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"UPDATE users SET username = $username, full_name = $fullName, password_hash = $passwordHash, active = $active, updated_at = $updatedAt WHERE id = $id;";
-        BindUser(cmd, user);
+        BindUser(cmd, user, encryptPasswordHash: false);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -124,6 +127,29 @@ public sealed class UserRepository : IUserRepository
         }, cancellationToken);
     }
 
+    public async Task UpsertSyncedUsersAsync(IEnumerable<UserAccount> users, CancellationToken cancellationToken = default)
+    {
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+
+        foreach (var user in users)
+        {
+            var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+INSERT INTO users (id, username, full_name, password_hash, active, created_at, updated_at)
+VALUES ($id, $username, $fullName, $passwordHash, $active, $createdAt, $updatedAt)
+ON CONFLICT(id) DO UPDATE SET
+    username = excluded.username,
+    full_name = excluded.full_name,
+    password_hash = excluded.password_hash,
+    active = excluded.active,
+    updated_at = excluded.updated_at;";
+
+            BindUser(cmd, user, encryptPasswordHash: true);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
     public static string HashPassword(string password)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(password));
@@ -141,14 +167,55 @@ public sealed class UserRepository : IUserRepository
         UpdatedAt = DateTimeOffset.Parse(reader.GetString(6))
     };
 
-    private static void BindUser(Microsoft.Data.Sqlite.SqliteCommand cmd, UserAccount user)
+    private static void BindUser(Microsoft.Data.Sqlite.SqliteCommand cmd, UserAccount user, bool encryptPasswordHash)
     {
         cmd.Parameters.AddWithValue("$id", user.Id);
         cmd.Parameters.AddWithValue("$username", user.Username.Trim());
         cmd.Parameters.AddWithValue("$fullName", user.FullName.Trim());
-        cmd.Parameters.AddWithValue("$passwordHash", user.PasswordHash);
+        cmd.Parameters.AddWithValue("$passwordHash", encryptPasswordHash ? EncryptHash(user.PasswordHash) : user.PasswordHash);
         cmd.Parameters.AddWithValue("$active", user.Active ? 1 : 0);
         cmd.Parameters.AddWithValue("$createdAt", user.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("$updatedAt", user.UpdatedAt.ToString("O"));
+    }
+
+    private static string DecryptHashIfNeeded(string value)
+    {
+        if (!value.StartsWith(EncryptedPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return value;
+        }
+
+        var payload = Convert.FromBase64String(value[EncryptedPrefix.Length..]);
+        var iv = payload[..16];
+        var cipher = payload[16..];
+
+        using var aes = Aes.Create();
+        aes.Key = EncryptionKey;
+        aes.IV = iv;
+        aes.Mode = CipherMode.CBC;
+        aes.Padding = PaddingMode.PKCS7;
+
+        using var decryptor = aes.CreateDecryptor();
+        var plainBytes = decryptor.TransformFinalBlock(cipher, 0, cipher.Length);
+        return Encoding.UTF8.GetString(plainBytes);
+    }
+
+    private static string EncryptHash(string plainHash)
+    {
+        using var aes = Aes.Create();
+        aes.Key = EncryptionKey;
+        aes.GenerateIV();
+        aes.Mode = CipherMode.CBC;
+        aes.Padding = PaddingMode.PKCS7;
+
+        using var encryptor = aes.CreateEncryptor();
+        var plainBytes = Encoding.UTF8.GetBytes(plainHash);
+        var cipher = encryptor.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
+
+        var payload = new byte[aes.IV.Length + cipher.Length];
+        Buffer.BlockCopy(aes.IV, 0, payload, 0, aes.IV.Length);
+        Buffer.BlockCopy(cipher, 0, payload, aes.IV.Length, cipher.Length);
+
+        return EncryptedPrefix + Convert.ToBase64String(payload);
     }
 }

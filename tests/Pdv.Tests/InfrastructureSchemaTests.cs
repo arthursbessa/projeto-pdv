@@ -25,6 +25,7 @@ public sealed class InfrastructureSchemaTests
         Assert.True(await TableExistsAsync(connection, "sale_payments"));
         Assert.True(await TableExistsAsync(connection, "cash_register_sessions"));
         Assert.True(await TableExistsAsync(connection, "customers"));
+        Assert.True(await TableExistsAsync(connection, "store_settings"));
 
         var paymentCount = await ScalarIntAsync(connection, "SELECT COUNT(1) FROM payment_methods;");
         Assert.True(paymentCount >= 3);

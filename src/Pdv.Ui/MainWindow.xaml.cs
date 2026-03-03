@@ -18,6 +18,7 @@ public partial class MainWindow : Window
         {
             if (DataContext is MainViewModel vm)
             {
+                await vm.LoadStoreSettingsAsync();
                 await vm.RefreshCatalogAsync();
             }
 
@@ -150,17 +151,19 @@ public partial class MainWindow : Window
         printDialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "Cupom Fiscal");
     }
 
-    private static string BuildFiscalCouponText(Sale sale)
+    private string BuildFiscalCouponText(Sale sale)
     {
         const int width = 44;
         var sb = new StringBuilder();
 
-        sb.AppendLine(Center("LARA ACESSORIOS EIRELI ME", width));
-        sb.AppendLine(Center("AV CRISTOVAO COLOMBO, 67 - SAVASSI", width));
-        sb.AppendLine(Center("CEP: 30140-140 - BELO HORIZONTE - MG", width));
-        sb.AppendLine("CNPJ:28.663.093/0001-53");
-        sb.AppendLine("IE:003.044314.0006");
-        sb.AppendLine("IM:1.046.973/001-0");
+        var vm = DataContext as MainViewModel;
+        var storeName = string.IsNullOrWhiteSpace(vm?.StoreName) ? "LOJA" : vm!.StoreName;
+        var storeAddress = string.IsNullOrWhiteSpace(vm?.StoreAddress) ? "ENDEREÇO NÃO INFORMADO" : vm!.StoreAddress;
+        var storeCnpj = string.IsNullOrWhiteSpace(vm?.StoreCnpj) ? "NÃO INFORMADO" : vm!.StoreCnpj;
+
+        sb.AppendLine(Center(storeName.ToUpperInvariant(), width));
+        sb.AppendLine(Center(storeAddress.ToUpperInvariant(), width));
+        sb.AppendLine($"CNPJ:{storeCnpj}");
         sb.AppendLine(new string('-', width));
         sb.AppendLine(Center("CUPOM FISCAL", width));
         sb.AppendLine(new string('-', width));

@@ -45,6 +45,8 @@ public partial class App : System.Windows.Application
 
         var dbInitializer = Services.GetRequiredService<DatabaseInitializer>();
         await dbInitializer.InitializeAsync();
+        var usersRepository = Services.GetRequiredService<Pdv.Application.Abstractions.IUserRepository>();
+        await usersRepository.SeedAdminAsync();
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 

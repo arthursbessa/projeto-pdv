@@ -11,4 +11,5 @@ public interface IUserRepository
     Task UpdateAsync(UserAccount user, CancellationToken cancellationToken = default);
     Task ToggleActiveAsync(string id, bool active, CancellationToken cancellationToken = default);
     Task SeedAdminAsync(CancellationToken cancellationToken = default);
+    Task UpsertSyncedUsersAsync(IEnumerable<UserAccount> users, CancellationToken cancellationToken = default);
 }
