@@ -206,29 +206,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
-    public async Task FinalizeAsync(PaymentMethod paymentMethod)
+    public async Task<Sale?> FinalizeAsync(PaymentMethod paymentMethod)
     {
         if (IsBusy)
         {
-            return;
+            return null;
         }
 
         if (_session.OpenCashRegister is null)
         {
             StatusMessage = "Venda bloqueada: nenhum caixa aberto.";
-            return;
+            return null;
         }
 
         if (_session.OpenCashRegister.BusinessDate != DateTimeOffset.Now.ToString("yyyy-MM-dd"))
         {
             StatusMessage = "Caixa aberto em data anterior. Feche e reabra o caixa do dia.";
-            return;
+            return null;
         }
 
         if (!Items.Any())
         {
             StatusMessage = "Adicione itens para finalizar a venda.";
-            return;
+            return null;
         }
 
         IsBusy = true;
@@ -265,6 +265,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             CancelSale();
             var pending = await _outboxRepository.GetPendingCountAsync();
             StatusMessage = $"Venda finalizada ({paymentMethod}) e salva offline. Outbox pendente: {pending}";
+            return sale;
         }
         finally
         {

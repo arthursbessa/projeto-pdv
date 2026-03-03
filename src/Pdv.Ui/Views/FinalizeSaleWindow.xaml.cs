@@ -12,6 +12,7 @@ public partial class FinalizeSaleWindow : Window
     }
 
     public PaymentMethod? SelectedPaymentMethod { get; private set; }
+    public bool ShouldPrintCoupon { get; private set; }
 
     private void Confirm_Click(object sender, RoutedEventArgs e)
     {
@@ -20,6 +21,8 @@ public partial class FinalizeSaleWindow : Window
             : CardOption.IsChecked == true
                 ? PaymentMethod.Card
                 : PaymentMethod.Pix;
+
+        ShouldPrintCoupon = PrintCouponOption.IsChecked == true;
 
         DialogResult = true;
         Close();
