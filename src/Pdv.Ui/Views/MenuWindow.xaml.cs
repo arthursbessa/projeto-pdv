@@ -1,6 +1,5 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using Pdv.Application.Abstractions;
 using Pdv.Ui.ViewModels;
 
 namespace Pdv.Ui.Views;
@@ -53,33 +52,5 @@ public partial class MenuWindow : Window
         {
             await vm.IntegratePendingSalesAsync();
         }
-    }
-
-    private async void OpenSales_Click(object sender, RoutedEventArgs e)
-    {
-        var session = App.Services.GetRequiredService<SessionContext>().OpenCashRegister;
-        if (session is null)
-        {
-            MessageBox.Show("Não há caixa aberto.");
-            return;
-        }
-
-        var repository = App.Services.GetRequiredService<ICashRegisterRepository>();
-        var sales = await repository.GetSalesReportBySessionAsync(session.Id);
-        new SalesReportWindow(sales) { Owner = this }.ShowDialog();
-    }
-
-    private async void OpenCashReport_Click(object sender, RoutedEventArgs e)
-    {
-        var session = App.Services.GetRequiredService<SessionContext>().OpenCashRegister;
-        if (session is null)
-        {
-            MessageBox.Show("Não há caixa aberto.");
-            return;
-        }
-
-        var repository = App.Services.GetRequiredService<ICashRegisterRepository>();
-        var report = await repository.GetCashReportBySessionAsync(session.Id);
-        new CashReportWindow(report) { Owner = this }.ShowDialog();
     }
 }

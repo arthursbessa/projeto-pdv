@@ -81,6 +81,49 @@ public sealed class InfrastructureSchemaTests
         Assert.Equal((int)PaymentMethod.Pix, paymentMethodId);
     }
 
+
+    [Fact]
+    public async Task CashStatusSnapshot_ShouldReturnCurrentBalanceAndTransactions()
+    {
+        var dbPath = CreateTempDbPath();
+        var factory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(factory);
+        var cashRegisterRepository = new CashRegisterRepository(factory);
+
+        await initializer.InitializeAsync();
+
+        var now = DateTimeOffset.UtcNow;
+        var session = await cashRegisterRepository.OpenAsync(10000, "user-1", now);
+
+        await using (var connection = factory.Create())
+        {
+            await connection.OpenAsync();
+
+            var saleCommand = connection.CreateCommand();
+            saleCommand.CommandText = @"INSERT INTO sales (id, created_at, total_cents, payment_method, payment_method_id, status, cash_register_session_id)
+VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLETED', $sessionId);";
+            saleCommand.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+            saleCommand.Parameters.AddWithValue("$createdAt", now.ToString("O"));
+            saleCommand.Parameters.AddWithValue("$totalCents", 2500);
+            saleCommand.Parameters.AddWithValue("$paymentMethod", "Cash");
+            saleCommand.Parameters.AddWithValue("$paymentMethodId", (int)PaymentMethod.Cash);
+            saleCommand.Parameters.AddWithValue("$sessionId", session.Id);
+            await saleCommand.ExecuteNonQueryAsync();
+        }
+
+        await cashRegisterRepository.RegisterWithdrawalAsync(session.Id, 1000, "Troco", "user-1", now);
+
+        var snapshot = await cashRegisterRepository.GetCashStatusSnapshotAsync(now);
+
+        Assert.True(snapshot.IsOpen);
+        Assert.Equal(session.Id, snapshot.SessionId);
+        Assert.Equal(10000, snapshot.OpeningAmountCents);
+        Assert.Equal(2500, snapshot.SalesTotalCents);
+        Assert.Equal(1000, snapshot.WithdrawalsTotalCents);
+        Assert.Equal(11500, snapshot.CurrentBalanceCents);
+        Assert.Equal(2, snapshot.Transactions.Count);
+    }
+
     private static async Task<bool> TableExistsAsync(SqliteConnection connection, string table)
     {
         var command = connection.CreateCommand();

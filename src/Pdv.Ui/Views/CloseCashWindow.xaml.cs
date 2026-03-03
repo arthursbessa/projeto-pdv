@@ -8,6 +8,13 @@ public partial class CloseCashWindow : Window
     public CloseCashWindow()
     {
         InitializeComponent();
+        Loaded += async (_, _) =>
+        {
+            if (DataContext is MenuViewModel vm)
+            {
+                await vm.RefreshCashStatusAsync();
+            }
+        };
     }
 
     private async void Confirm_Click(object sender, RoutedEventArgs e)
