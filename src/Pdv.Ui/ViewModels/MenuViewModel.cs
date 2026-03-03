@@ -52,7 +52,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            StatusMessage = "Integrando vendas, usuários e configurações...";
+            StatusMessage = "Integrando vendas, usuários, produtos e configurações...";
             var result = await _dataIntegrationService.IntegrateAllAsync();
             var settings = await _storeSettingsRepository.GetCurrentAsync();
             if (settings is not null)
@@ -61,7 +61,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
                 StoreLogoPath = settings.LogoLocalPath;
             }
 
-            StatusMessage = $"Integração concluída. Vendas: {result.SentSales} enviadas ({result.PendingSales} pendentes). Usuários sincronizados: {result.SyncedUsers}. Configurações: {(result.StoreSettingsSynced ? "ok" : "sem atualização")}.";
+            StatusMessage = $"Integração concluída. Vendas: {result.SentSales} enviadas ({result.PendingSales} pendentes). Produtos sincronizados: {result.SyncedProducts}. Usuários sincronizados: {result.SyncedUsers}. Configurações: {(result.StoreSettingsSynced ? "ok" : "sem atualização")}.";
         }
         catch (Exception ex)
         {

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
+using Pdv.Application.Services;
 
 namespace Pdv.Ui.ViewModels;
 
@@ -10,17 +11,24 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private readonly ICashRegisterRepository _cashRegisters;
     private readonly IUserRepository _users;
     private readonly SessionContext _session;
+    private readonly DataIntegrationService _dataIntegrationService;
     private string _username = string.Empty;
     private string _password = string.Empty;
     private string _statusMessage = "Informe as credenciais do Lovable.";
     private bool _isBusy;
 
-    public LoginViewModel(IAuthApiClient authApiClient, ICashRegisterRepository cashRegisters, IUserRepository users, SessionContext session)
+    public LoginViewModel(
+        IAuthApiClient authApiClient,
+        ICashRegisterRepository cashRegisters,
+        IUserRepository users,
+        SessionContext session,
+        DataIntegrationService dataIntegrationService)
     {
         _authApiClient = authApiClient;
         _cashRegisters = cashRegisters;
         _users = users;
         _session = session;
+        _dataIntegrationService = dataIntegrationService;
     }
 
     public string Username { get => _username; set => SetField(ref _username, value); }
@@ -55,6 +63,13 @@ public sealed class LoginViewModel : INotifyPropertyChanged
 
             _session.CurrentUser = user;
 
+            if (!offlineLogin)
+            {
+                StatusMessage = "Login confirmado. Sincronizando dados iniciais...";
+                var integration = await _dataIntegrationService.IntegrateAllAsync();
+                StatusMessage = $"Sincronização inicial concluída. Produtos: {integration.SyncedProducts}, usuários: {integration.SyncedUsers}, vendas enviadas: {integration.SentSales}.";
+            }
+
             var openSession = await _cashRegisters.GetOpenSessionAsync();
             if (openSession is not null && openSession.BusinessDate != DateTimeOffset.Now.ToString("yyyy-MM-dd"))
             {
@@ -65,9 +80,15 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             }
 
             _session.OpenCashRegister = openSession;
-            StatusMessage = offlineLogin
-                ? $"Bem-vindo, {user.FullName}. Login local (sem internet)."
-                : $"Bem-vindo, {user.FullName}.";
+            if (offlineLogin)
+            {
+                StatusMessage = $"Bem-vindo, {user.FullName}. Login local (sem internet).";
+            }
+            else
+            {
+                StatusMessage = $"Bem-vindo, {user.FullName}. Sincronização inicial concluída.";
+            }
+
             return true;
         }
         catch (Exception ex)

@@ -10,6 +10,8 @@ public sealed class DataIntegrationService
     private readonly IUserRepository _userRepository;
     private readonly IStoreSettingsApiClient _storeSettingsApiClient;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
+    private readonly ICatalogApiClient _catalogApiClient;
+    private readonly IProductCacheRepository _productCacheRepository;
 
     public DataIntegrationService(
         SyncService syncService,
@@ -17,7 +19,9 @@ public sealed class DataIntegrationService
         IUsersApiClient usersApiClient,
         IUserRepository userRepository,
         IStoreSettingsApiClient storeSettingsApiClient,
-        IStoreSettingsRepository storeSettingsRepository)
+        IStoreSettingsRepository storeSettingsRepository,
+        ICatalogApiClient catalogApiClient,
+        IProductCacheRepository productCacheRepository)
     {
         _syncService = syncService;
         _outboxRepository = outboxRepository;
@@ -25,9 +29,11 @@ public sealed class DataIntegrationService
         _userRepository = userRepository;
         _storeSettingsApiClient = storeSettingsApiClient;
         _storeSettingsRepository = storeSettingsRepository;
+        _catalogApiClient = catalogApiClient;
+        _productCacheRepository = productCacheRepository;
     }
 
-    public async Task<(int SentSales, int PendingSales, int SyncedUsers, bool StoreSettingsSynced)> IntegrateAllAsync(CancellationToken cancellationToken = default)
+    public async Task<(int SentSales, int PendingSales, int SyncedUsers, bool StoreSettingsSynced, int SyncedProducts)> IntegrateAllAsync(CancellationToken cancellationToken = default)
     {
         var sent = await _syncService.RunOnceAsync(cancellationToken);
         var pending = await _outboxRepository.GetPendingCountAsync(cancellationToken);
@@ -43,6 +49,20 @@ public sealed class DataIntegrationService
             syncedSettings = true;
         }
 
-        return (sent, pending, remoteUsers.Count, syncedSettings);
+        var remoteProducts = await _catalogApiClient.GetCatalogAsync(cancellationToken);
+        foreach (var product in remoteProducts)
+        {
+            var existing = await _productCacheRepository.FindByIdAsync(product.ProductId, cancellationToken);
+            if (existing is null)
+            {
+                await _productCacheRepository.AddAsync(product, cancellationToken);
+            }
+            else
+            {
+                await _productCacheRepository.UpdateAsync(product, cancellationToken);
+            }
+        }
+
+        return (sent, pending, remoteUsers.Count, syncedSettings, remoteProducts.Count);
     }
 }
