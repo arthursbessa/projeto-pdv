@@ -20,9 +20,15 @@ public partial class App : System.Windows.Application
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddEnvironmentVariables()
             .Build();
 
         var options = configuration.GetSection("Pdv").Get<PdvOptions>() ?? new PdvOptions();
+        var terminalTokenFromEnv = Environment.GetEnvironmentVariable("TOKEN_PDV");
+        if (!string.IsNullOrWhiteSpace(terminalTokenFromEnv))
+        {
+            options.TerminalToken = terminalTokenFromEnv.Trim();
+        }
         var fullDbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, options.DatabaseRelativePath));
         var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
         Directory.CreateDirectory(dbDirectory);
