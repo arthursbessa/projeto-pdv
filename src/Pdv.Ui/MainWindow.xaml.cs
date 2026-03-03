@@ -1,11 +1,14 @@
+using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Pdv.Application.Domain;
-using Pdv.Ui.Views;
 using Pdv.Ui.ViewModels;
+using Pdv.Ui.Views;
 
 namespace Pdv.Ui;
 
@@ -19,7 +22,6 @@ public partial class MainWindow : Window
             if (DataContext is MainViewModel vm)
             {
                 await vm.LoadStoreSettingsAsync();
-                await vm.RefreshCatalogAsync();
             }
 
             FocusBarcode();
@@ -109,7 +111,7 @@ public partial class MainWindow : Window
 
     private void ItemsDataGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
     {
-        if (DataContext is not MainViewModel vm || e.Row.Item is not Pdv.Application.Domain.SaleItem item)
+        if (DataContext is not MainViewModel vm || e.Row.Item is not SaleItem item)
         {
             return;
         }
@@ -139,16 +141,79 @@ public partial class MainWindow : Window
             return;
         }
 
-        var cupom = BuildFiscalCouponText(sale);
-        var document = new FlowDocument(new Paragraph(new Run(cupom)))
+        var document = BuildFiscalCouponDocument(sale, printDialog.PrintableAreaWidth);
+        printDialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "Cupom Fiscal");
+    }
+
+    private FlowDocument BuildFiscalCouponDocument(Sale sale, double printableAreaWidth)
+    {
+        var cupomText = BuildFiscalCouponText(sale);
+        var document = new FlowDocument
         {
-            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+            FontFamily = new FontFamily("Consolas"),
             FontSize = 11,
             PagePadding = new Thickness(20),
-            ColumnWidth = printDialog.PrintableAreaWidth
+            ColumnWidth = printableAreaWidth,
+            TextAlignment = TextAlignment.Left
         };
 
-        printDialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "Cupom Fiscal");
+        var logo = TryCreateBlackAndWhiteLogo();
+        if (logo is not null)
+        {
+            document.Blocks.Add(new Paragraph(new InlineUIContainer(new Image
+            {
+                Source = logo,
+                Width = 140,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = HorizontalAlignment.Center
+            }))
+            {
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+        }
+
+        document.Blocks.Add(new Paragraph(new Run(cupomText))
+        {
+            Margin = new Thickness(0)
+        });
+
+        return document;
+    }
+
+    private BitmapSource? TryCreateBlackAndWhiteLogo()
+    {
+        if (DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(vm.StoreLogoPath))
+        {
+            return null;
+        }
+
+        var fullPath = vm.StoreLogoPath;
+        if (!Path.IsPathRooted(fullPath))
+        {
+            fullPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, fullPath));
+        }
+
+        if (!File.Exists(fullPath))
+        {
+            return null;
+        }
+
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.UriSource = new Uri(fullPath, UriKind.Absolute);
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.EndInit();
+        image.Freeze();
+
+        var blackAndWhite = new FormatConvertedBitmap();
+        blackAndWhite.BeginInit();
+        blackAndWhite.Source = image;
+        blackAndWhite.DestinationFormat = PixelFormats.Gray8;
+        blackAndWhite.EndInit();
+        blackAndWhite.Freeze();
+
+        return blackAndWhite;
     }
 
     private string BuildFiscalCouponText(Sale sale)
