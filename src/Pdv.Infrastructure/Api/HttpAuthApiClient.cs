@@ -20,12 +20,12 @@ public sealed class HttpAuthApiClient : IAuthApiClient
 
     public async Task<UserAccount?> AuthenticateAsync(string username, string password, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.SupabaseBaseUrl) || string.IsNullOrWhiteSpace(_options.SupabaseAnonKey))
+        if (string.IsNullOrWhiteSpace(_options.FunctionsBaseUrl) || string.IsNullOrWhiteSpace(_options.TerminalToken))
         {
-            throw new InvalidOperationException("Configuração de autenticação Supabase incompleta.");
+            throw new InvalidOperationException("Configuração de autenticação PDV incompleta.");
         }
 
-        var endpoint = $"{_options.SupabaseBaseUrl.TrimEnd('/')}/auth/v1/token?grant_type=password";
+        var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-auth";
         var payload = JsonSerializer.Serialize(new { email = username.Trim(), password });
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
@@ -33,7 +33,7 @@ public sealed class HttpAuthApiClient : IAuthApiClient
             Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
 
-        request.Headers.Add("apikey", _options.SupabaseAnonKey);
+        request.Headers.Add("x-pdv-token", _options.TerminalToken);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -45,7 +45,9 @@ public sealed class HttpAuthApiClient : IAuthApiClient
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
-        if (!document.RootElement.TryGetProperty("user", out var userElement))
+        if (!document.RootElement.TryGetProperty("success", out var successElement)
+            || successElement.ValueKind != JsonValueKind.True
+            || !document.RootElement.TryGetProperty("user", out var userElement))
         {
             return null;
         }
@@ -54,16 +56,10 @@ public sealed class HttpAuthApiClient : IAuthApiClient
         var email = userElement.TryGetProperty("email", out var emailElement) ? emailElement.GetString() ?? username.Trim() : username.Trim();
         string fullName = email;
 
-        if (userElement.TryGetProperty("user_metadata", out var metadata) && metadata.ValueKind == JsonValueKind.Object)
+        if (userElement.TryGetProperty("display_name", out var displayNameElement)
+            && !string.IsNullOrWhiteSpace(displayNameElement.GetString()))
         {
-            if (metadata.TryGetProperty("full_name", out var fullNameElement) && !string.IsNullOrWhiteSpace(fullNameElement.GetString()))
-            {
-                fullName = fullNameElement.GetString()!;
-            }
-            else if (metadata.TryGetProperty("name", out var nameElement) && !string.IsNullOrWhiteSpace(nameElement.GetString()))
-            {
-                fullName = nameElement.GetString()!;
-            }
+            fullName = displayNameElement.GetString()!;
         }
 
         return new UserAccount

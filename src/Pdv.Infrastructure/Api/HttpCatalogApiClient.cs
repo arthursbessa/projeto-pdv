@@ -37,12 +37,21 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
         var list = new List<ProductCacheItem>();
-        if (document.RootElement.ValueKind != JsonValueKind.Array)
+        var catalogRoot = document.RootElement;
+
+        if (catalogRoot.ValueKind == JsonValueKind.Object
+            && catalogRoot.TryGetProperty("catalog", out var catalogElement)
+            && catalogElement.ValueKind == JsonValueKind.Array)
+        {
+            catalogRoot = catalogElement;
+        }
+
+        if (catalogRoot.ValueKind != JsonValueKind.Array)
         {
             return list;
         }
 
-        foreach (var item in document.RootElement.EnumerateArray())
+        foreach (var item in catalogRoot.EnumerateArray())
         {
             var id = item.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
             var barcode = item.TryGetProperty("barcode", out var barcodeEl) ? barcodeEl.GetString() : null;
