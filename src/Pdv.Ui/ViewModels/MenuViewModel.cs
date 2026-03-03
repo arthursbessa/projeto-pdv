@@ -16,6 +16,8 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private bool _isBusy;
     private string _storeName = "Minha Loja";
     private string _storeLogoPath = string.Empty;
+    private int _lastClosedCashBalanceCents;
+    private int _currentCashBalanceCents;
 
     public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters, DataIntegrationService dataIntegrationService, IStoreSettingsRepository storeSettingsRepository)
     {
@@ -30,11 +32,19 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
     public string StoreName { get => _storeName; set => SetField(ref _storeName, value); }
     public string StoreLogoPath { get => _storeLogoPath; set => SetField(ref _storeLogoPath, value); }
+    public int LastClosedCashBalanceCents { get => _lastClosedCashBalanceCents; private set => SetField(ref _lastClosedCashBalanceCents, value); }
+    public string LastClosedCashBalance => MoneyFormatter.FormatFromCents(LastClosedCashBalanceCents);
+    public int CurrentCashBalanceCents { get => _currentCashBalanceCents; private set => SetField(ref _currentCashBalanceCents, value); }
+    public string CurrentCashBalance => MoneyFormatter.FormatFromCents(CurrentCashBalanceCents);
     public string CashStatus => _session.OpenCashRegister is null ? "Caixa fechado" : $"Caixa aberto em {_session.OpenCashRegister.BusinessDate}";
 
     public async Task LoadAsync()
     {
         _session.OpenCashRegister = await _cashRegisters.GetOpenSessionAsync();
+        var lastClosedSession = await _cashRegisters.GetLastClosedSessionAsync();
+        LastClosedCashBalanceCents = lastClosedSession?.ClosingAmountCents ?? 0;
+        await RefreshCashStatusAsync();
+
         var settings = await _storeSettingsRepository.GetCurrentAsync();
         if (settings is not null)
         {
@@ -43,6 +53,8 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(CashStatus));
+        OnPropertyChanged(nameof(LastClosedCashBalance));
+        OnPropertyChanged(nameof(CurrentCashBalance));
     }
 
     public async Task IntegratePendingSalesAsync()
@@ -90,8 +102,10 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         try
         {
             _session.OpenCashRegister = await _cashRegisters.OpenAsync(amount, _session.CurrentUser.Id, DateTimeOffset.Now);
+            await RefreshCashStatusAsync();
             StatusMessage = "Caixa aberto com sucesso.";
             OnPropertyChanged(nameof(CashStatus));
+            OnPropertyChanged(nameof(CurrentCashBalance));
         }
         catch (Exception ex)
         {
@@ -108,9 +122,15 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         }
 
         await _cashRegisters.CloseAsync(_session.OpenCashRegister.Id, _session.CurrentUser.Id, DateTimeOffset.Now);
+        var lastClosedSession = await _cashRegisters.GetLastClosedSessionAsync();
+        LastClosedCashBalanceCents = lastClosedSession?.ClosingAmountCents ?? 0;
+        await RefreshCashStatusAsync();
         _session.OpenCashRegister = null;
+        CurrentCashBalanceCents = 0;
         StatusMessage = "Caixa encerrado com sucesso.";
         OnPropertyChanged(nameof(CashStatus));
+        OnPropertyChanged(nameof(LastClosedCashBalance));
+        OnPropertyChanged(nameof(CurrentCashBalance));
     }
 
     public async Task RegisterWithdrawalAsync(string amount, string reason)
@@ -128,7 +148,16 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         }
 
         await _cashRegisters.RegisterWithdrawalAsync(_session.OpenCashRegister.Id, amountCents, reason, _session.CurrentUser.Id, DateTimeOffset.Now);
+        await RefreshCashStatusAsync();
         StatusMessage = "Sangria registrada com sucesso.";
+        OnPropertyChanged(nameof(CurrentCashBalance));
+    }
+
+
+    public async Task RefreshCashStatusAsync()
+    {
+        var snapshot = await _cashRegisters.GetCashStatusSnapshotAsync(DateTimeOffset.Now);
+        CurrentCashBalanceCents = snapshot.CurrentBalanceCents;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

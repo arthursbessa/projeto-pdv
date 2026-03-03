@@ -23,6 +23,16 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         return await reader.ReadAsync(cancellationToken) ? ReadSession(reader) : null;
     }
 
+    public async Task<CashRegisterSession?> GetLastClosedSessionAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = @"SELECT id, opened_at, closed_at, opening_amount_cents, closing_amount_cents, status, business_date, opened_by_user_id, closed_by_user_id FROM cash_register_sessions WHERE status = 'CLOSED' ORDER BY closed_at DESC LIMIT 1;";
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? ReadSession(reader) : null;
+    }
+
     public async Task<CashRegisterSession> OpenAsync(int openingAmountCents, string userId, DateTimeOffset now, CancellationToken cancellationToken = default)
     {
         var openSession = await GetOpenSessionAsync(cancellationToken);
@@ -123,82 +133,69 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         return result;
     }
 
-    public async Task<IReadOnlyList<SalesReportEntry>> GetSalesReportBySessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    public async Task<CashStatusSnapshot> GetCashStatusSnapshotAsync(DateTimeOffset now, CancellationToken cancellationToken = default)
     {
-        await using var connection = _connectionFactory.Create();
-        await connection.OpenAsync(cancellationToken);
-        var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-SELECT s.id,
-       s.cash_register_session_id,
-       c.business_date,
-       s.created_at,
-       s.payment_method,
-       s.total_cents,
-       COALESCE(u.full_name, 'Operador não identificado')
-FROM sales s
-LEFT JOIN cash_register_sessions c ON c.id = s.cash_register_session_id
-LEFT JOIN users u ON u.id = c.opened_by_user_id
-WHERE s.cash_register_session_id = $sessionId
-ORDER BY s.created_at DESC;";
-        cmd.Parameters.AddWithValue("$sessionId", sessionId);
-
-        var result = new List<SalesReportEntry>();
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        var openSession = await GetOpenSessionAsync(cancellationToken);
+        if (openSession is null)
         {
-            result.Add(new SalesReportEntry
+            return new CashStatusSnapshot
             {
-                SaleId = reader.GetString(0),
-                SessionId = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                BusinessDate = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                CreatedAt = DateTimeOffset.Parse(reader.GetString(3)),
-                PaymentMethod = reader.GetString(4),
-                TotalCents = reader.GetInt32(5),
-                OperatorName = reader.GetString(6)
-            });
+                IsOpen = false,
+                BusinessDate = now.ToString("yyyy-MM-dd")
+            };
         }
 
-        return result;
-    }
-
-
-    public async Task<IReadOnlyList<CashReportEntry>> GetCashReportBySessionAsync(string sessionId, CancellationToken cancellationToken = default)
-    {
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
-        var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-SELECT 'VENDA' AS entry_type,
+
+        var salesTotalCents = await GetTotalSalesAsync(connection, openSession.Id, cancellationToken);
+        var withdrawalsTotalCents = await GetTotalWithdrawalsAsync(connection, openSession.Id, cancellationToken);
+
+        var txCommand = connection.CreateCommand();
+        txCommand.CommandText = @"
+SELECT 'SALE' AS tx_type,
        s.id AS reference_id,
        s.created_at,
        s.total_cents AS amount_cents
 FROM sales s
 WHERE s.cash_register_session_id = $sessionId
+  AND DATE(s.created_at) = DATE($businessDate)
 UNION ALL
-SELECT 'SANGRIA' AS entry_type,
+SELECT 'WITHDRAWAL' AS tx_type,
        COALESCE(w.reason, 'Sangria') AS reference_id,
        w.created_at,
        -w.amount_cents AS amount_cents
 FROM cash_withdrawals w
 WHERE w.cash_register_session_id = $sessionId
+  AND DATE(w.created_at) = DATE($businessDate)
 ORDER BY created_at DESC;";
-        cmd.Parameters.AddWithValue("$sessionId", sessionId);
+        txCommand.Parameters.AddWithValue("$sessionId", openSession.Id);
+        txCommand.Parameters.AddWithValue("$businessDate", openSession.BusinessDate);
 
-        var result = new List<CashReportEntry>();
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        var transactions = new List<CashStatusTransaction>();
+        await using var reader = await txCommand.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            result.Add(new CashReportEntry
+            transactions.Add(new CashStatusTransaction
             {
                 Type = reader.GetString(0),
-                ReferenceId = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                Reference = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
                 CreatedAt = DateTimeOffset.Parse(reader.GetString(2)),
                 AmountCents = reader.GetInt32(3)
             });
         }
 
-        return result;
+        return new CashStatusSnapshot
+        {
+            IsOpen = true,
+            SessionId = openSession.Id,
+            BusinessDate = openSession.BusinessDate,
+            OpeningAmountCents = openSession.OpeningAmountCents,
+            SalesTotalCents = salesTotalCents,
+            WithdrawalsTotalCents = withdrawalsTotalCents,
+            CurrentBalanceCents = openSession.OpeningAmountCents + salesTotalCents - withdrawalsTotalCents,
+            Transactions = transactions
+        };
     }
 
     private static async Task<int> GetOpeningAmountAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
