@@ -8,16 +8,18 @@ public sealed class LoginViewModel : INotifyPropertyChanged
 {
     private readonly IAuthApiClient _authApiClient;
     private readonly ICashRegisterRepository _cashRegisters;
+    private readonly IUserRepository _users;
     private readonly SessionContext _session;
     private string _username = string.Empty;
     private string _password = string.Empty;
     private string _statusMessage = "Informe as credenciais do Lovable.";
     private bool _isBusy;
 
-    public LoginViewModel(IAuthApiClient authApiClient, ICashRegisterRepository cashRegisters, SessionContext session)
+    public LoginViewModel(IAuthApiClient authApiClient, ICashRegisterRepository cashRegisters, IUserRepository users, SessionContext session)
     {
         _authApiClient = authApiClient;
         _cashRegisters = cashRegisters;
+        _users = users;
         _session = session;
     }
 
@@ -38,6 +40,13 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         {
             StatusMessage = "Autenticando operador...";
             var user = await _authApiClient.AuthenticateAsync(Username, Password);
+            var offlineLogin = false;
+            if (user is null)
+            {
+                user = await _users.AuthenticateAsync(Username, Password);
+                offlineLogin = user is not null;
+            }
+
             if (user is null)
             {
                 StatusMessage = "Usuário ou senha inválidos.";
@@ -56,13 +65,24 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             }
 
             _session.OpenCashRegister = openSession;
-            StatusMessage = $"Bem-vindo, {user.FullName}.";
+            StatusMessage = offlineLogin
+                ? $"Bem-vindo, {user.FullName}. Login local (sem internet)."
+                : $"Bem-vindo, {user.FullName}.";
             return true;
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Falha no login remoto: {ex.Message}";
-            return false;
+            var localUser = await _users.AuthenticateAsync(Username, Password);
+            if (localUser is null)
+            {
+                StatusMessage = $"Falha no login remoto e local: {ex.Message}";
+                return false;
+            }
+
+            _session.CurrentUser = localUser;
+            _session.OpenCashRegister = await _cashRegisters.GetOpenSessionAsync();
+            StatusMessage = $"Bem-vindo, {localUser.FullName}. Login local (sem internet).";
+            return true;
         }
         finally
         {

@@ -18,15 +18,20 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<ICatalogApiClient, HttpCatalogApiClient>();
         services.AddHttpClient<ISalesApiClient, HttpSalesApiClient>();
         services.AddHttpClient<IAuthApiClient, HttpAuthApiClient>();
+        services.AddHttpClient<IUsersApiClient, HttpUsersApiClient>();
+        services.AddHttpClient<IStoreSettingsApiClient, HttpStoreSettingsApiClient>();
 
         services.AddSingleton<IProductCacheRepository, ProductCacheRepository>();
         services.AddSingleton<ISalesRepository, SalesRepository>();
         services.AddSingleton<ICashRegisterRepository, CashRegisterRepository>();
         services.AddSingleton<IOutboxRepository, OutboxRepository>();
+        services.AddSingleton<IUserRepository, UserRepository>();
+        services.AddSingleton<IStoreSettingsRepository, StoreSettingsRepository>();
 
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<SaleBuilderService>();
         services.AddSingleton<SyncService>();
+        services.AddSingleton<DataIntegrationService>();
 
         return services;
     }

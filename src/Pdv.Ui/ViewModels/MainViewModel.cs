@@ -19,10 +19,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly ICatalogApiClient _catalogApiClient;
     private readonly SyncService _syncService;
     private readonly SessionContext _session;
+    private readonly IStoreSettingsRepository _storeSettingsRepository;
     private string _barcodeInput = string.Empty;
     private string _statusMessage = "PDV iniciado.";
     private SaleItem? _selectedItem;
     private bool _isBusy;
+    private string _storeName = "LOJA";
+    private string _storeCnpj = string.Empty;
+    private string _storeAddress = string.Empty;
+    private string _storeLogoPath = string.Empty;
 
     public MainViewModel(
         SaleBuilderService saleBuilderService,
@@ -32,7 +37,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ICatalogApiClient catalogApiClient,
         SyncService syncService,
         PdvOptions options,
-        SessionContext session)
+        SessionContext session,
+        IStoreSettingsRepository storeSettingsRepository)
     {
         _saleBuilderService = saleBuilderService;
         _salesRepository = salesRepository;
@@ -41,6 +47,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _catalogApiClient = catalogApiClient;
         _syncService = syncService;
         _session = session;
+        _storeSettingsRepository = storeSettingsRepository;
 
         DatabaseRelativePath = $"./{options.DatabaseRelativePath.Replace('\\', '/')}";
         DatabaseFullPath = options.DatabaseFullPath;
@@ -57,6 +64,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
     public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
     public string OfflineStatus => "Operação offline com integração Lovable";
+    public string StoreName { get => _storeName; set => SetField(ref _storeName, value); }
+    public string StoreCnpj { get => _storeCnpj; set => SetField(ref _storeCnpj, value); }
+    public string StoreAddress { get => _storeAddress; set => SetField(ref _storeAddress, value); }
+    public string StoreLogoPath { get => _storeLogoPath; set => SetField(ref _storeLogoPath, value); }
     public string DatabaseRelativePath { get; }
     public string DatabaseFullPath { get; }
     public string DatabaseStatus => $"Cache local: {DatabaseRelativePath}";
@@ -74,6 +85,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 RemoveSelectedCommand.RaiseCanExecuteChanged();
             }
         }
+    }
+
+
+    public async Task LoadStoreSettingsAsync()
+    {
+        var settings = await _storeSettingsRepository.GetCurrentAsync();
+        if (settings is null)
+        {
+            return;
+        }
+
+        StoreName = settings.StoreName;
+        StoreCnpj = settings.Cnpj;
+        StoreAddress = settings.Address;
+        StoreLogoPath = settings.LogoLocalPath;
     }
 
     public async Task RefreshCatalogAsync()

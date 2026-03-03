@@ -50,11 +50,17 @@
                 </LinearGradientBrush>
             </Border.Background>
             <DockPanel Margin="22,18">
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <TextBlock Text="PDV" Foreground="White" FontSize="38" FontWeight="Bold" Margin="0,0,14,0"/>
-                    <Border Background="#2563EB" CornerRadius="10" Padding="12,6">
-                        <TextBlock Text="{Binding OfflineStatus}" Foreground="White" FontWeight="SemiBold"/>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <Border Width="58" Height="58" CornerRadius="10" Background="#0F172A" Margin="0,0,12,0">
+                        <Image Source="{Binding StoreLogoPath}" Stretch="Uniform"/>
                     </Border>
+                    <TextBlock Text="PDV" Foreground="White" FontSize="38" FontWeight="Bold" Margin="0,0,14,0"/>
+                    <StackPanel>
+                        <TextBlock Text="{Binding StoreName}" Foreground="#93C5FD" FontWeight="SemiBold" FontSize="14"/>
+                        <Border Background="#2563EB" CornerRadius="10" Padding="12,6" Margin="0,4,0,0">
+                            <TextBlock Text="{Binding OfflineStatus}" Foreground="White" FontWeight="SemiBold"/>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <TextBlock Text="Itens" Foreground="#93C5FD" VerticalAlignment="Center" Margin="0,0,8,0"/>

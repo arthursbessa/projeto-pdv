@@ -19,9 +19,15 @@
 
         <Border Background="#111B34" CornerRadius="18" Padding="20" Margin="0,0,0,18">
             <DockPanel LastChildFill="False">
-                <StackPanel DockPanel.Dock="Left">
-                    <TextBlock Text="Menu Operacional" Foreground="White" FontSize="36" FontWeight="Bold"/>
-                    <TextBlock Text="{Binding Username, StringFormat=Operador: {0}}" Foreground="#93C5FD" FontSize="16"/>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <Border Width="66" Height="66" CornerRadius="12" Background="#0F172A" Margin="0,0,12,0">
+                        <Image Source="{Binding StoreLogoPath}" Stretch="Uniform"/>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="{Binding StoreName}" Foreground="#93C5FD" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock Text="Menu Operacional" Foreground="White" FontSize="36" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding Username, StringFormat=Operador: {0}}" Foreground="#93C5FD" FontSize="16"/>
+                    </StackPanel>
                 </StackPanel>
                 <Border DockPanel.Dock="Right" Background="#1E293B" CornerRadius="10" Padding="16,8" VerticalAlignment="Center">
                     <TextBlock Text="{Binding CashStatus}" Foreground="#FDE68A" FontSize="18" FontWeight="SemiBold"/>
