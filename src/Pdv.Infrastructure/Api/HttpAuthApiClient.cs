@@ -26,7 +26,8 @@ public sealed class HttpAuthApiClient : IAuthApiClient
         }
 
         var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-auth";
-        var payload = JsonSerializer.Serialize(new { email = username.Trim(), password });
+        var normalizedUsername = username.Trim();
+        var payload = JsonSerializer.Serialize(new { username = normalizedUsername, password });
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
@@ -53,8 +54,12 @@ public sealed class HttpAuthApiClient : IAuthApiClient
         }
 
         var userId = userElement.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
-        var email = userElement.TryGetProperty("email", out var emailElement) ? emailElement.GetString() ?? username.Trim() : username.Trim();
-        string fullName = email;
+        var accountUsername = userElement.TryGetProperty("username", out var usernameElement)
+            ? usernameElement.GetString() ?? normalizedUsername
+            : userElement.TryGetProperty("email", out var emailElement)
+                ? emailElement.GetString() ?? normalizedUsername
+                : normalizedUsername;
+        string fullName = accountUsername;
 
         if (userElement.TryGetProperty("display_name", out var displayNameElement)
             && !string.IsNullOrWhiteSpace(displayNameElement.GetString()))
@@ -65,7 +70,7 @@ public sealed class HttpAuthApiClient : IAuthApiClient
         return new UserAccount
         {
             Id = userId,
-            Username = email,
+            Username = accountUsername,
             FullName = fullName,
             PasswordHash = string.Empty,
             Active = true,
