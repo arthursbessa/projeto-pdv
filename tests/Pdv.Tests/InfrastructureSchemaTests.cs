@@ -90,7 +90,8 @@ public sealed class InfrastructureSchemaTests
         var dbPath = CreateTempDbPath();
         var factory = new SqliteConnectionFactory(dbPath);
         var initializer = new DatabaseInitializer(factory);
-        var cashRegisterRepository = new CashRegisterRepository(factory, new FakeCashRegisterApiClient());
+        var cashApiClient = new FakeCashRegisterApiClient();
+        var cashRegisterRepository = new CashRegisterRepository(factory, cashApiClient);
 
         await initializer.InitializeAsync();
 
@@ -124,6 +125,13 @@ VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLET
         Assert.Equal(1000, snapshot.WithdrawalsTotalCents);
         Assert.Equal(11500, snapshot.CurrentBalanceCents);
         Assert.Equal(2, snapshot.Transactions.Count);
+
+        await using var verifyConnection = factory.Create();
+        await verifyConnection.OpenAsync();
+        var pendingWithdrawals = await ScalarIntAsync(verifyConnection, "SELECT COUNT(1) FROM outbox_events WHERE type = 'CashWithdrawalCreated' AND status = 'Pending';");
+
+        Assert.Equal(1, pendingWithdrawals);
+        Assert.Equal(0, cashApiClient.WithdrawalCalls);
     }
 
     [Fact]
@@ -152,6 +160,8 @@ VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLET
 
     private sealed class FakeCashRegisterApiClient : ICashRegisterApiClient
     {
+        public int WithdrawalCalls { get; private set; }
+
         public Task<string> OpenAsync(string operatorId, decimal amount, DateTimeOffset datetime, CancellationToken cancellationToken = default)
             => Task.FromResult(Guid.NewGuid().ToString());
 
@@ -159,7 +169,10 @@ VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLET
             => Task.CompletedTask;
 
         public Task RegisterWithdrawalAsync(string sessionId, string operatorId, decimal amount, string description, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            WithdrawalCalls++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class NotFoundOnCloseCashRegisterApiClient : ICashRegisterApiClient

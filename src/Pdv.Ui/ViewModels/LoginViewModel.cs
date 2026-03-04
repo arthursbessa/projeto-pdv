@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
-using Pdv.Application.Services;
 using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
@@ -12,7 +11,6 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private readonly ICashRegisterRepository _cashRegisters;
     private readonly IUserRepository _users;
     private readonly SessionContext _session;
-    private readonly DataIntegrationService _dataIntegrationService;
     private readonly IErrorFileLogger _errorLogger;
     private string _username = string.Empty;
     private string _password = string.Empty;
@@ -24,14 +22,12 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         ICashRegisterRepository cashRegisters,
         IUserRepository users,
         SessionContext session,
-        DataIntegrationService dataIntegrationService,
         IErrorFileLogger errorLogger)
     {
         _authApiClient = authApiClient;
         _cashRegisters = cashRegisters;
         _users = users;
         _session = session;
-        _dataIntegrationService = dataIntegrationService;
         _errorLogger = errorLogger;
     }
 
@@ -52,13 +48,6 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         {
             StatusMessage = "Autenticando operador...";
             var user = await _authApiClient.AuthenticateAsync(Username, Password);
-            var offlineLogin = false;
-            if (user is null)
-            {
-                user = await _users.AuthenticateAsync(Username, Password);
-                offlineLogin = user is not null;
-            }
-
             if (user is null)
             {
                 StatusMessage = "Usuário ou senha inválidos.";
@@ -66,21 +55,6 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             }
 
             _session.CurrentUser = user;
-
-            if (!offlineLogin)
-            {
-                StatusMessage = "Login confirmado. Sincronizando dados iniciais...";
-                try
-                {
-                    var integration = await _dataIntegrationService.IntegrateAllAsync();
-                    StatusMessage = $"Sincronização inicial concluída. Produtos: {integration.SyncedProducts}, usuários: {integration.SyncedUsers}, vendas enviadas: {integration.SentSales}.";
-                }
-                catch (Exception ex)
-                {
-                    _errorLogger.LogError("Erro durante sincronização inicial após login", ex);
-                    StatusMessage = $"Login confirmado, mas a sincronização inicial falhou: {ex.Message}";
-                }
-            }
 
             var openSession = await _cashRegisters.GetOpenSessionAsync();
             if (openSession is not null && openSession.BusinessDate != DateTimeOffset.Now.ToString("yyyy-MM-dd"))
@@ -92,14 +66,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             }
 
             _session.OpenCashRegister = openSession;
-            if (offlineLogin)
-            {
-                StatusMessage = $"Bem-vindo, {user.FullName}. Login local (sem internet).";
-            }
-            else
-            {
-                StatusMessage = $"Bem-vindo, {user.FullName}. Sincronização inicial concluída.";
-            }
+            StatusMessage = $"Bem-vindo, {user.FullName}.";
 
             return true;
         }

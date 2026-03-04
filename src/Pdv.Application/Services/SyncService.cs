@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Pdv.Application.Abstractions;
+using Pdv.Application.Domain;
 
 namespace Pdv.Application.Services;
 
@@ -6,11 +8,13 @@ public sealed class SyncService
 {
     private readonly IOutboxRepository _outboxRepository;
     private readonly ISalesApiClient _salesApiClient;
+    private readonly ICashRegisterApiClient _cashRegisterApiClient;
 
-    public SyncService(IOutboxRepository outboxRepository, ISalesApiClient salesApiClient)
+    public SyncService(IOutboxRepository outboxRepository, ISalesApiClient salesApiClient, ICashRegisterApiClient cashRegisterApiClient)
     {
         _outboxRepository = outboxRepository;
         _salesApiClient = salesApiClient;
+        _cashRegisterApiClient = cashRegisterApiClient;
     }
 
     public async Task<int> RunOnceAsync(CancellationToken cancellationToken = default)
@@ -23,7 +27,7 @@ public sealed class SyncService
         {
             try
             {
-                await _salesApiClient.SendSaleAsync(outboxEvent.PayloadJson, cancellationToken);
+                await DispatchEventAsync(outboxEvent, cancellationToken);
                 await _outboxRepository.MarkAsSentAsync(outboxEvent.Id, DateTimeOffset.UtcNow, cancellationToken);
                 sent++;
             }
@@ -36,5 +40,28 @@ public sealed class SyncService
         }
 
         return sent;
+    }
+
+    private async Task DispatchEventAsync(OutboxEvent outboxEvent, CancellationToken cancellationToken)
+    {
+        switch (outboxEvent.Type)
+        {
+            case "SaleCreated":
+                await _salesApiClient.SendSaleAsync(outboxEvent.PayloadJson, cancellationToken);
+                break;
+            case "CashWithdrawalCreated":
+                using (var document = JsonDocument.Parse(outboxEvent.PayloadJson))
+                {
+                    var root = document.RootElement;
+                    var sessionId = root.GetProperty("session_id").GetString() ?? string.Empty;
+                    var operatorId = root.GetProperty("operator_id").GetString() ?? string.Empty;
+                    var amount = root.GetProperty("amount").GetDecimal();
+                    var description = root.GetProperty("description").GetString() ?? string.Empty;
+                    await _cashRegisterApiClient.RegisterWithdrawalAsync(sessionId, operatorId, amount, description, cancellationToken);
+                }
+                break;
+            default:
+                throw new InvalidOperationException($"Tipo de evento de integração desconhecido: {outboxEvent.Type}");
+        }
     }
 }

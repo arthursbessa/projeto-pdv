@@ -1,6 +1,7 @@
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
 using Pdv.Infrastructure.Persistence;
+using System.Text.Json;
 using System.Net;
 
 namespace Pdv.Infrastructure.Repositories;
@@ -109,8 +110,6 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
             throw new InvalidOperationException("Valor de sangria deve ser maior que zero.");
         }
 
-        await _cashRegisterApiClient.RegisterWithdrawalAsync(sessionId, userId, amountCents / 100m, reason, cancellationToken);
-
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
 
@@ -124,6 +123,23 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         cmd.Parameters.AddWithValue("$createdAt", now.ToString("O"));
         cmd.Parameters.AddWithValue("$createdByUserId", userId);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
+
+        var outboxPayload = JsonSerializer.Serialize(new
+        {
+            session_id = sessionId,
+            operator_id = userId,
+            amount = amountCents / 100m,
+            description = reason
+        });
+
+        var outboxCommand = connection.CreateCommand();
+        outboxCommand.CommandText = @"INSERT INTO outbox_events (id, type, payload_json, status, attempts, next_retry_at, last_error, created_at, sent_at)
+VALUES ($id, $type, $payloadJson, 'Pending', 0, NULL, NULL, $createdAt, NULL);";
+        outboxCommand.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+        outboxCommand.Parameters.AddWithValue("$type", "CashWithdrawalCreated");
+        outboxCommand.Parameters.AddWithValue("$payloadJson", outboxPayload);
+        outboxCommand.Parameters.AddWithValue("$createdAt", DateTimeOffset.UtcNow.ToString("O"));
+        await outboxCommand.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<SaleSummary>> GetSalesBySessionAsync(string sessionId, CancellationToken cancellationToken = default)
