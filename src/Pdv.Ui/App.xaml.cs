@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pdv.Application.Configuration;
 using Pdv.Infrastructure.Setup;
+using Pdv.Ui.Services;
 using Pdv.Ui.ViewModels;
 using Pdv.Ui.Views;
 
@@ -37,6 +38,7 @@ public partial class App : System.Windows.Application
 
         Services = new ServiceCollection()
             .AddPdvInfrastructure(options, fullDbPath)
+            .AddSingleton<IErrorFileLogger, ErrorFileLogger>()
             .AddSingleton<SessionContext>()
             .AddTransient<MainViewModel>()
             .AddTransient<LoginViewModel>()

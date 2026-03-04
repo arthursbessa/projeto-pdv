@@ -43,6 +43,13 @@ Arquivo: `src/Pdv.Ui/appsettings.json`
 
 > O PDV não possui mais telas de cadastro de usuários e produtos. Esses cadastros e gestão ficam no painel Lovable.
 
+
+## Logs de erro (arquivo .txt)
+
+- Em caso de falha no login remoto ou na sincronização inicial após login, o PDV grava detalhes no arquivo `logs/errors-AAAAmmdd.txt`.
+- O diretório `logs` é criado automaticamente no diretório de execução da aplicação.
+- Apenas erros são registrados.
+
 ## Como rodar
 
 ```bash

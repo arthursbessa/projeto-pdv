@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Services;
+using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
 
@@ -12,6 +13,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private readonly IUserRepository _users;
     private readonly SessionContext _session;
     private readonly DataIntegrationService _dataIntegrationService;
+    private readonly IErrorFileLogger _errorLogger;
     private string _username = string.Empty;
     private string _password = string.Empty;
     private string _statusMessage = "Informe as credenciais do Lovable.";
@@ -22,13 +24,15 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         ICashRegisterRepository cashRegisters,
         IUserRepository users,
         SessionContext session,
-        DataIntegrationService dataIntegrationService)
+        DataIntegrationService dataIntegrationService,
+        IErrorFileLogger errorLogger)
     {
         _authApiClient = authApiClient;
         _cashRegisters = cashRegisters;
         _users = users;
         _session = session;
         _dataIntegrationService = dataIntegrationService;
+        _errorLogger = errorLogger;
     }
 
     public string Username { get => _username; set => SetField(ref _username, value); }
@@ -73,6 +77,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
                 }
                 catch (Exception ex)
                 {
+                    _errorLogger.LogError("Erro durante sincronização inicial após login", ex);
                     StatusMessage = $"Login confirmado, mas a sincronização inicial falhou: {ex.Message}";
                 }
             }
@@ -100,6 +105,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _errorLogger.LogError("Falha no login remoto", ex);
             var localUser = await _users.AuthenticateAsync(Username, Password);
             if (localUser is null)
             {
