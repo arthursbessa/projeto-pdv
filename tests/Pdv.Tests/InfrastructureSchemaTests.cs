@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
 using Pdv.Infrastructure.Persistence;
 using Pdv.Infrastructure.Repositories;
@@ -88,7 +89,7 @@ public sealed class InfrastructureSchemaTests
         var dbPath = CreateTempDbPath();
         var factory = new SqliteConnectionFactory(dbPath);
         var initializer = new DatabaseInitializer(factory);
-        var cashRegisterRepository = new CashRegisterRepository(factory);
+        var cashRegisterRepository = new CashRegisterRepository(factory, new FakeCashRegisterApiClient());
 
         await initializer.InitializeAsync();
 
@@ -122,6 +123,19 @@ VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLET
         Assert.Equal(1000, snapshot.WithdrawalsTotalCents);
         Assert.Equal(11500, snapshot.CurrentBalanceCents);
         Assert.Equal(2, snapshot.Transactions.Count);
+    }
+
+
+    private sealed class FakeCashRegisterApiClient : ICashRegisterApiClient
+    {
+        public Task<string> OpenAsync(string operatorId, decimal amount, DateTimeOffset datetime, CancellationToken cancellationToken = default)
+            => Task.FromResult(Guid.NewGuid().ToString());
+
+        public Task CloseAsync(string sessionId, string operatorId, decimal amount, DateTimeOffset datetime, string? notes, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task RegisterWithdrawalAsync(string sessionId, string operatorId, decimal amount, string description, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private static async Task<bool> TableExistsAsync(SqliteConnection connection, string table)

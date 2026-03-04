@@ -15,7 +15,9 @@ Aplicação de PDV WPF com cache local SQLite e integração com o backend Lovab
 - Feedback de operação na barra de status (sucesso/erro/validação).
 - Banco local único com criação automática de pasta, arquivo, schema e índices no primeiro run.
 - Sincronização do catálogo remoto via endpoint `GET /pdv-catalog` com token `x-pdv-token`, armazenando cache local para operação do checkout.
-- Envio de vendas para o backend via outbox local e endpoint `POST /pdv-sales`.
+- Envio de vendas para o backend via outbox local e endpoint `POST /pdv-sales` (incluindo `session_id` do caixa aberto).
+- Abertura/fechamento de caixa integrado ao backend via endpoint `POST /pdv-cash-register`.
+- Sangria integrada ao backend via endpoint `POST /pdv-sangria`.
 - Login usando as mesmas credenciais do Lovable (Supabase Auth).
 - Login com fechamento automático de caixa aberto em data anterior.
 - Bloqueio de abertura do PDV quando não houver caixa aberto.

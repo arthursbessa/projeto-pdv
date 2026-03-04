@@ -282,6 +282,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var payload = JsonSerializer.Serialize(new
             {
+                session_id = _session.OpenCashRegister.Id,
                 payment_method = sale.PaymentMethod.ToString().ToLowerInvariant(),
                 items = sale.Items.Select(x => new { product_id = x.ProductId, quantity = x.Quantity })
             });

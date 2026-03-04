@@ -7,10 +7,12 @@ namespace Pdv.Infrastructure.Repositories;
 public sealed class CashRegisterRepository : ICashRegisterRepository
 {
     private readonly SqliteConnectionFactory _connectionFactory;
+    private readonly ICashRegisterApiClient _cashRegisterApiClient;
 
-    public CashRegisterRepository(SqliteConnectionFactory connectionFactory)
+    public CashRegisterRepository(SqliteConnectionFactory connectionFactory, ICashRegisterApiClient cashRegisterApiClient)
     {
         _connectionFactory = connectionFactory;
+        _cashRegisterApiClient = cashRegisterApiClient;
     }
 
     public async Task<CashRegisterSession?> GetOpenSessionAsync(CancellationToken cancellationToken = default)
@@ -41,9 +43,11 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
             throw new InvalidOperationException("Já existe um caixa aberto.");
         }
 
+        var remoteSessionId = await _cashRegisterApiClient.OpenAsync(userId, openingAmountCents / 100m, now, cancellationToken);
+
         var session = new CashRegisterSession
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = remoteSessionId,
             OpenedAt = now,
             OpeningAmountCents = openingAmountCents,
             Status = "OPEN",
@@ -74,6 +78,8 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         var openingAmount = await GetOpeningAmountAsync(connection, sessionId, cancellationToken);
         var closingAmountCents = openingAmount + totalSales - totalWithdrawals;
 
+        await _cashRegisterApiClient.CloseAsync(sessionId, userId, closingAmountCents / 100m, now, null, cancellationToken);
+
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"UPDATE cash_register_sessions SET status = 'CLOSED', closed_at = $closedAt, closing_amount_cents = $closingAmountCents, closed_by_user_id = $closedByUserId WHERE id = $id AND status = 'OPEN';";
         cmd.Parameters.AddWithValue("$id", sessionId);
@@ -93,6 +99,8 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         {
             throw new InvalidOperationException("Valor de sangria deve ser maior que zero.");
         }
+
+        await _cashRegisterApiClient.RegisterWithdrawalAsync(sessionId, userId, amountCents / 100m, reason, cancellationToken);
 
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
