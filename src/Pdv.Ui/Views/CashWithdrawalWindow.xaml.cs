@@ -17,7 +17,12 @@ public partial class CashWithdrawalWindow : Window
             return;
         }
 
-        await vm.RegisterWithdrawalAsync(AmountTextBox.Text, ReasonTextBox.Text);
+        var success = await vm.RegisterWithdrawalAsync(AmountTextBox.Text, ReasonTextBox.Text);
+        if (!success)
+        {
+            return;
+        }
+
         DialogResult = true;
         Close();
     }

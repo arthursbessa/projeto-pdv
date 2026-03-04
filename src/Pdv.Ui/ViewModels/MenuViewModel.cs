@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Services;
 using Pdv.Ui.Formatting;
+using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
 
@@ -12,6 +13,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private readonly ICashRegisterRepository _cashRegisters;
     private readonly DataIntegrationService _dataIntegrationService;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
+    private readonly IErrorFileLogger _errorLogger;
     private string _statusMessage = "Gerencie seu caixa e módulos.";
     private bool _isBusy;
     private string _storeName = "Minha Loja";
@@ -19,12 +21,13 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private int _lastClosedCashBalanceCents;
     private int _currentCashBalanceCents;
 
-    public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters, DataIntegrationService dataIntegrationService, IStoreSettingsRepository storeSettingsRepository)
+    public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters, DataIntegrationService dataIntegrationService, IStoreSettingsRepository storeSettingsRepository, IErrorFileLogger errorLogger)
     {
         _session = session;
         _cashRegisters = cashRegisters;
         _dataIntegrationService = dataIntegrationService;
         _storeSettingsRepository = storeSettingsRepository;
+        _errorLogger = errorLogger;
     }
 
     public string Username => _session.CurrentUser?.FullName ?? "-";
@@ -133,24 +136,34 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CurrentCashBalance));
     }
 
-    public async Task RegisterWithdrawalAsync(string amount, string reason)
+    public async Task<bool> RegisterWithdrawalAsync(string amount, string reason)
     {
         if (_session.CurrentUser is null || _session.OpenCashRegister is null)
         {
             StatusMessage = "Não há caixa aberto para sangria.";
-            return;
+            return false;
         }
 
         if (!MoneyFormatter.TryParseToCents(amount, out var amountCents) || amountCents <= 0)
         {
             StatusMessage = "Valor de sangria inválido.";
-            return;
+            return false;
         }
 
-        await _cashRegisters.RegisterWithdrawalAsync(_session.OpenCashRegister.Id, amountCents, reason, _session.CurrentUser.Id, DateTimeOffset.Now);
-        await RefreshCashStatusAsync();
-        StatusMessage = "Sangria registrada com sucesso.";
-        OnPropertyChanged(nameof(CurrentCashBalance));
+        try
+        {
+            await _cashRegisters.RegisterWithdrawalAsync(_session.OpenCashRegister.Id, amountCents, reason, _session.CurrentUser.Id, DateTimeOffset.Now);
+            await RefreshCashStatusAsync();
+            StatusMessage = "Sangria registrada com sucesso.";
+            OnPropertyChanged(nameof(CurrentCashBalance));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _errorLogger.LogError("Falha ao registrar sangria", ex);
+            StatusMessage = $"Falha ao registrar sangria: {ex.Message}";
+            return false;
+        }
     }
 
 
