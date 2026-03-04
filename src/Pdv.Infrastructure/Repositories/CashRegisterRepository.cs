@@ -1,6 +1,7 @@
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
 using Pdv.Infrastructure.Persistence;
+using System.Net;
 
 namespace Pdv.Infrastructure.Repositories;
 
@@ -78,7 +79,15 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         var openingAmount = await GetOpeningAmountAsync(connection, sessionId, cancellationToken);
         var closingAmountCents = openingAmount + totalSales - totalWithdrawals;
 
-        await _cashRegisterApiClient.CloseAsync(sessionId, userId, closingAmountCents / 100m, now, null, cancellationToken);
+        try
+        {
+            await _cashRegisterApiClient.CloseAsync(sessionId, userId, closingAmountCents / 100m, now, null, cancellationToken);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Sessões antigas podem já ter sido removidas/encerradas remotamente.
+            // Ainda assim precisamos fechar o caixa local para permitir o login.
+        }
 
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"UPDATE cash_register_sessions SET status = 'CLOSED', closed_at = $closedAt, closing_amount_cents = $closingAmountCents, closed_by_user_id = $closedByUserId WHERE id = $id AND status = 'OPEN';";
