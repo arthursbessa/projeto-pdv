@@ -113,6 +113,8 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
 
+        var existingUserId = await ResolveExistingUserIdAsync(connection, userId, cancellationToken);
+
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"INSERT INTO cash_withdrawals (id, cash_register_session_id, amount_cents, reason, created_at, created_by_user_id)
                             VALUES ($id, $sessionId, $amountCents, $reason, $createdAt, $createdByUserId);";
@@ -121,7 +123,7 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         cmd.Parameters.AddWithValue("$amountCents", amountCents);
         cmd.Parameters.AddWithValue("$reason", reason);
         cmd.Parameters.AddWithValue("$createdAt", now.ToString("O"));
-        cmd.Parameters.AddWithValue("$createdByUserId", userId);
+        cmd.Parameters.AddWithValue("$createdByUserId", existingUserId ?? (object)DBNull.Value);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         var outboxPayload = JsonSerializer.Serialize(new
@@ -256,6 +258,21 @@ ORDER BY created_at DESC;";
         withdrawals.Parameters.AddWithValue("$sessionId", sessionId);
         var withdrawalValue = await withdrawals.ExecuteScalarAsync(cancellationToken);
         return withdrawalValue is null || withdrawalValue is DBNull ? 0 : Convert.ToInt32(withdrawalValue);
+    }
+
+    private static async Task<string?> ResolveExistingUserIdAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string userId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return null;
+        }
+
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT id FROM users WHERE id = $userId LIMIT 1;";
+        command.Parameters.AddWithValue("$userId", userId);
+
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        return value is string existingUserId ? existingUserId : null;
     }
 
     private static CashRegisterSession ReadSession(Microsoft.Data.Sqlite.SqliteDataReader reader) => new()
