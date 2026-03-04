@@ -66,8 +66,15 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             if (!offlineLogin)
             {
                 StatusMessage = "Login confirmado. Sincronizando dados iniciais...";
-                var integration = await _dataIntegrationService.IntegrateAllAsync();
-                StatusMessage = $"Sincronização inicial concluída. Produtos: {integration.SyncedProducts}, usuários: {integration.SyncedUsers}, vendas enviadas: {integration.SentSales}.";
+                try
+                {
+                    var integration = await _dataIntegrationService.IntegrateAllAsync();
+                    StatusMessage = $"Sincronização inicial concluída. Produtos: {integration.SyncedProducts}, usuários: {integration.SyncedUsers}, vendas enviadas: {integration.SentSales}.";
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Login confirmado, mas a sincronização inicial falhou: {ex.Message}";
+                }
             }
 
             var openSession = await _cashRegisters.GetOpenSessionAsync();
