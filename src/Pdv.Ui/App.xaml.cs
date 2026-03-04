@@ -45,6 +45,9 @@ public partial class App : System.Windows.Application
             .AddTransient<MenuViewModel>()
             .BuildServiceProvider();
 
+        var errorLogger = Services.GetRequiredService<IErrorFileLogger>();
+        RegisterGlobalExceptionLogging(errorLogger);
+
         var dbInitializer = Services.GetRequiredService<DatabaseInitializer>();
         await dbInitializer.InitializeAsync();
         var usersRepository = Services.GetRequiredService<Pdv.Application.Abstractions.IUserRepository>();
@@ -68,5 +71,29 @@ public partial class App : System.Windows.Application
         MainWindow = menu;
         ShutdownMode = ShutdownMode.OnMainWindowClose;
         menu.Show();
+    }
+
+    private void RegisterGlobalExceptionLogging(IErrorFileLogger errorLogger)
+    {
+        DispatcherUnhandledException += (_, args) =>
+        {
+            errorLogger.LogError("Exceção não tratada na UI", args.Exception);
+            args.Handled = true;
+            MessageBox.Show("Ocorreu um erro inesperado. Consulte os logs para detalhes.", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception exception)
+            {
+                errorLogger.LogError("Exceção não tratada no AppDomain", exception);
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            errorLogger.LogError("Exceção de Task não observada", args.Exception);
+            args.SetObserved();
+        };
     }
 }

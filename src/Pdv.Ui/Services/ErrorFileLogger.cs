@@ -10,8 +10,24 @@ public sealed class ErrorFileLogger : IErrorFileLogger
 
     public ErrorFileLogger()
     {
-        _logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+        _logDirectory = Path.Combine(ResolveProjectRoot(), "logs");
         Directory.CreateDirectory(_logDirectory);
+    }
+
+    private static string ResolveProjectRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "PdvDesktop.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return AppContext.BaseDirectory;
     }
 
     public void LogError(string context, Exception exception)
