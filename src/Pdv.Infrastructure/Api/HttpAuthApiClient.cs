@@ -61,41 +61,43 @@ public sealed class HttpAuthApiClient : IAuthApiClient
             return null;
         }
 
-        await using (response)
-        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
-
-        if (!document.RootElement.TryGetProperty("success", out var successElement)
-            || successElement.ValueKind != JsonValueKind.True
-            || !document.RootElement.TryGetProperty("user", out var userElement))
+        using (response)
         {
-            return null;
+            await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
+
+            if (!document.RootElement.TryGetProperty("success", out var successElement)
+                || successElement.ValueKind != JsonValueKind.True
+                || !document.RootElement.TryGetProperty("user", out var userElement))
+            {
+                return null;
+            }
+
+            var userId = userElement.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
+            var accountUsername = userElement.TryGetProperty("username", out var usernameElement)
+                ? usernameElement.GetString() ?? normalizedUsername
+                : userElement.TryGetProperty("email", out var emailElement)
+                    ? emailElement.GetString() ?? normalizedUsername
+                    : normalizedUsername;
+            string fullName = accountUsername;
+
+            if (userElement.TryGetProperty("display_name", out var displayNameElement)
+                && !string.IsNullOrWhiteSpace(displayNameElement.GetString()))
+            {
+                fullName = displayNameElement.GetString()!;
+            }
+
+            return new UserAccount
+            {
+                Id = userId,
+                Username = accountUsername,
+                FullName = fullName,
+                PasswordHash = string.Empty,
+                Active = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
         }
-
-        var userId = userElement.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
-        var accountUsername = userElement.TryGetProperty("username", out var usernameElement)
-            ? usernameElement.GetString() ?? normalizedUsername
-            : userElement.TryGetProperty("email", out var emailElement)
-                ? emailElement.GetString() ?? normalizedUsername
-                : normalizedUsername;
-        string fullName = accountUsername;
-
-        if (userElement.TryGetProperty("display_name", out var displayNameElement)
-            && !string.IsNullOrWhiteSpace(displayNameElement.GetString()))
-        {
-            fullName = displayNameElement.GetString()!;
-        }
-
-        return new UserAccount
-        {
-            Id = userId,
-            Username = accountUsername,
-            FullName = fullName,
-            PasswordHash = string.Empty,
-            Active = true,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
     }
 
     private string BuildAuthEndpoint(string functionName)
