@@ -11,6 +11,7 @@ public sealed class HttpAuthApiClient : IAuthApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly PdvOptions _options;
+    private static readonly string[] AuthFunctionNames = ["pdv-auth", "pdv-login", "pdv-terminal-auth"];
 
     public HttpAuthApiClient(HttpClient httpClient, PdvOptions options)
     {
@@ -25,26 +26,45 @@ public sealed class HttpAuthApiClient : IAuthApiClient
             throw new InvalidOperationException("Configuração de autenticação PDV incompleta.");
         }
 
-        var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-auth";
         var normalizedUsername = username.Trim();
         var payload = JsonSerializer.Serialize(new { username = normalizedUsername, password });
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        HttpResponseMessage? response = null;
+        foreach (var authFunctionName in AuthFunctionNames)
         {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
-        };
+            using var request = new HttpRequestMessage(HttpMethod.Post, BuildAuthEndpoint(authFunctionName))
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
 
-        request.Headers.Add("x-pdv-token", _options.TerminalToken);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.Add("x-pdv-token", _options.TerminalToken);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+            response = await _httpClient.SendAsync(request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                break;
+            }
+
+            if (response.StatusCode != System.Net.HttpStatusCode.NotFound)
+            {
+                response.Dispose();
+                return null;
+            }
+
+            response.Dispose();
+            response = null;
+        }
+
+        if (response is null)
         {
             return null;
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        response.Dispose();
+
+        using var document = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
 
         if (!document.RootElement.TryGetProperty("success", out var successElement)
             || successElement.ValueKind != JsonValueKind.True
@@ -77,5 +97,16 @@ public sealed class HttpAuthApiClient : IAuthApiClient
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    private string BuildAuthEndpoint(string functionName)
+    {
+        var baseUrl = _options.FunctionsBaseUrl.TrimEnd('/');
+        if (baseUrl.EndsWith($"/{functionName}", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseUrl;
+        }
+
+        return $"{baseUrl}/{functionName}";
     }
 }
