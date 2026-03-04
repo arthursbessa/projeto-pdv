@@ -20,6 +20,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IAuthApiClient, HttpAuthApiClient>();
         services.AddHttpClient<IUsersApiClient, HttpUsersApiClient>();
         services.AddHttpClient<IStoreSettingsApiClient, HttpStoreSettingsApiClient>();
+        services.AddHttpClient<ICashRegisterApiClient, HttpCashRegisterApiClient>();
 
         services.AddSingleton<IProductCacheRepository, ProductCacheRepository>();
         services.AddSingleton<ISalesRepository, SalesRepository>();
