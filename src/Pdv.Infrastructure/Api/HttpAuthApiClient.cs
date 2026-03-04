@@ -61,9 +61,8 @@ public sealed class HttpAuthApiClient : IAuthApiClient
             return null;
         }
 
+        await using (response)
         await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        response.Dispose();
-
         using var document = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
 
         if (!document.RootElement.TryGetProperty("success", out var successElement)
