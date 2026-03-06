@@ -54,7 +54,7 @@
 
             <UniformGrid Grid.Column="1" Columns="2" Rows="2" Margin="14,0,0,0">
                 <Button Content="Acessar PDV" Click="OpenPdv_Click" Margin="10" Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="18" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-                <Button Content="Integrar dados" Click="IntegrateData_Click" Margin="10" Background="#7C3AED" Foreground="White" FontWeight="Bold" FontSize="18" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                <Button Content="Integrações" Click="OpenIntegrations_Click" Margin="10" Background="#7C3AED" Foreground="White" FontWeight="Bold" FontSize="18" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
             </UniformGrid>
         </Grid>
 

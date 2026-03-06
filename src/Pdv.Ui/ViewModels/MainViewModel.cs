@@ -7,6 +7,7 @@ using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
 using Pdv.Application.Services;
 using Pdv.Ui.Formatting;
+using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
 
@@ -20,6 +21,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly SyncService _syncService;
     private readonly SessionContext _session;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
+    private readonly IErrorFileLogger _errorLogger;
     private string _barcodeInput = string.Empty;
     private string _statusMessage = "PDV iniciado.";
     private SaleItem? _selectedItem;
@@ -38,7 +40,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SyncService syncService,
         PdvOptions options,
         SessionContext session,
-        IStoreSettingsRepository storeSettingsRepository)
+        IStoreSettingsRepository storeSettingsRepository,
+        IErrorFileLogger errorLogger)
     {
         _saleBuilderService = saleBuilderService;
         _salesRepository = salesRepository;
@@ -48,6 +51,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _syncService = syncService;
         _session = session;
         _storeSettingsRepository = storeSettingsRepository;
+        _errorLogger = errorLogger;
 
         DatabaseRelativePath = $"./{options.DatabaseRelativePath.Replace('\\', '/')}";
         DatabaseFullPath = options.DatabaseFullPath;
@@ -293,20 +297,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
             });
 
             await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
+            TriggerBackgroundSync();
 
-            var sent = await _syncService.RunOnceAsync();
             var pending = await _outboxRepository.GetPendingCountAsync();
 
             CancelSale();
-            StatusMessage = sent > 0
-                ? $"Venda finalizada ({paymentMethod}) e integrada automaticamente. Pendentes: {pending}."
-                : $"Venda finalizada ({paymentMethod}) e salva offline. Outbox pendente: {pending}.";
+            StatusMessage = $"Venda finalizada ({paymentMethod}) e enviada para integração assíncrona. Pendentes atuais: {pending}.";
             return sale;
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+
+    private void TriggerBackgroundSync()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _syncService.RunOnceAsync();
+            }
+            catch (Exception ex)
+            {
+                _errorLogger.LogError("Falha na integração assíncrona de venda", ex);
+            }
+        });
     }
 
     private void ReplaceItems(IReadOnlyCollection<SaleItem> items)

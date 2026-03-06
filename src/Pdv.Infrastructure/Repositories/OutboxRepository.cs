@@ -50,6 +50,29 @@ LIMIT $take;";
         return result;
     }
 
+
+    public async Task<IReadOnlyDictionary<string, int>> GetPendingCountsByTypeAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+SELECT type, COUNT(1)
+FROM outbox_events
+WHERE status = 'Pending'
+GROUP BY type;";
+
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result[reader.GetString(0)] = reader.GetInt32(1);
+        }
+
+        return result;
+    }
+
     public async Task MarkAsSentAsync(Guid id, DateTimeOffset sentAt, CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.Create();
