@@ -81,14 +81,20 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
 
-        var totalSales = await GetTotalSalesAsync(connection, sessionId, cancellationToken);
-        var totalWithdrawals = await GetTotalWithdrawalsAsync(connection, sessionId, cancellationToken);
-        var openingAmount = await GetOpeningAmountAsync(connection, sessionId, cancellationToken);
+        var resolvedSessionId = await ResolveExistingSessionIdAsync(connection, sessionId, cancellationToken);
+        if (resolvedSessionId is null)
+        {
+            throw new InvalidOperationException("Caixa não encontrado ou já está fechado.");
+        }
+
+        var totalSales = await GetTotalSalesAsync(connection, resolvedSessionId, cancellationToken);
+        var totalWithdrawals = await GetTotalWithdrawalsAsync(connection, resolvedSessionId, cancellationToken);
+        var openingAmount = await GetOpeningAmountAsync(connection, resolvedSessionId, cancellationToken);
         var closingAmountCents = openingAmount + totalSales - totalWithdrawals;
 
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"UPDATE cash_register_sessions SET status = 'CLOSED', closed_at = $closedAt, closing_amount_cents = $closingAmountCents, closed_by_user_id = $closedByUserId WHERE id = $id AND status = 'OPEN';";
-        cmd.Parameters.AddWithValue("$id", sessionId);
+        cmd.Parameters.AddWithValue("$id", resolvedSessionId);
         cmd.Parameters.AddWithValue("$closedAt", now.ToString("O"));
         cmd.Parameters.AddWithValue("$closingAmountCents", closingAmountCents);
         cmd.Parameters.AddWithValue("$closedByUserId", userId);
