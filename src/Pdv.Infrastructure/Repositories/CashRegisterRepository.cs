@@ -101,7 +101,7 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         var outboxPayload = JsonSerializer.Serialize(new
         {
             action = "close",
-            session_id = sessionId,
+            session_id = resolvedSessionId,
             operator_id = userId,
             amount = closingAmountCents / 100m,
             datetime = now.ToString("O"),
@@ -142,7 +142,7 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
 
         var outboxPayload = JsonSerializer.Serialize(new
         {
-            session_id = sessionId,
+            session_id = resolvedSessionId,
             operator_id = userId,
             amount = amountCents / 100m,
             description = reason

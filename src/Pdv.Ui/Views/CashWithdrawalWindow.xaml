@@ -2,18 +2,27 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:Pdv.Ui.Converters"
-        Title="Sangria de caixa" Height="320" Width="500" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Background="#0F172A">
+        Title="Sangria de caixa" Height="380" Width="500" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Background="#0F172A">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
         <converters:InverseBooleanConverter x:Key="InverseBoolConverter"/>
     </Window.Resources>
+
     <Grid Margin="20">
-        <StackPanel>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
             <TextBlock Text="Sangria" Foreground="White" FontWeight="Bold" FontSize="24" Margin="0,0,0,12"/>
             <TextBlock Text="Valor" Foreground="#CBD5E1"/>
             <TextBox x:Name="AmountTextBox" Text="0,00" Height="34" FontSize="16" Margin="0,6,0,12" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
             <TextBlock Text="Motivo (opcional)" Foreground="#CBD5E1"/>
-            <TextBox x:Name="ReasonTextBox" Height="70" Margin="0,6,0,14" TextWrapping="Wrap" AcceptsReturn="True" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+            <TextBox x:Name="ReasonTextBox" Height="90" Margin="0,6,0,0" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,14,0,0">
             <Button Content="Registrar sangria" Height="40" Background="#F59E0B" Foreground="White" Click="Confirm_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
             <ProgressBar Height="6" Margin="0,10,0,0" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
         </StackPanel>

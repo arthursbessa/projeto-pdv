@@ -9,12 +9,18 @@ public sealed class SyncService
     private readonly IOutboxRepository _outboxRepository;
     private readonly ISalesApiClient _salesApiClient;
     private readonly ICashRegisterApiClient _cashRegisterApiClient;
+    private readonly IErrorLogger _errorLogger;
 
-    public SyncService(IOutboxRepository outboxRepository, ISalesApiClient salesApiClient, ICashRegisterApiClient cashRegisterApiClient)
+    public SyncService(
+        IOutboxRepository outboxRepository,
+        ISalesApiClient salesApiClient,
+        ICashRegisterApiClient cashRegisterApiClient,
+        IErrorLogger errorLogger)
     {
         _outboxRepository = outboxRepository;
         _salesApiClient = salesApiClient;
         _cashRegisterApiClient = cashRegisterApiClient;
+        _errorLogger = errorLogger;
     }
 
     public async Task<int> RunOnceAsync(CancellationToken cancellationToken = default)
@@ -33,6 +39,7 @@ public sealed class SyncService
             }
             catch (Exception ex)
             {
+                _errorLogger.LogError($"Falha ao integrar evento '{outboxEvent.Type}' (id: {outboxEvent.Id})", ex);
                 var attempts = outboxEvent.Attempts + 1;
                 var nextRetry = DateTimeOffset.UtcNow.Add(SyncBackoffPolicy.NextDelay(attempts));
                 await _outboxRepository.MarkForRetryAsync(outboxEvent.Id, attempts, nextRetry, ex.Message, cancellationToken);

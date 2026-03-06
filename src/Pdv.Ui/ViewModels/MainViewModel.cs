@@ -132,6 +132,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _errorLogger.LogError("Falha ao atualizar catálogo", ex);
             StatusMessage = $"Falha ao atualizar catálogo: {ex.Message}";
         }
         finally
@@ -154,6 +155,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _errorLogger.LogError("Falha na integração manual de vendas", ex);
             StatusMessage = $"Falha na integração: {ex.Message}";
         }
         finally
