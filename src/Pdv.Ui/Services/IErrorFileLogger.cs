@@ -1,6 +1,7 @@
+using Pdv.Application.Abstractions;
+
 namespace Pdv.Ui.Services;
 
-public interface IErrorFileLogger
+public interface IErrorFileLogger : IErrorLogger
 {
-    void LogError(string context, Exception exception);
 }

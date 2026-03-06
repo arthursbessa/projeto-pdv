@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Infrastructure.Setup;
 using Pdv.Ui.Services;
@@ -34,16 +35,13 @@ public partial class App : System.Windows.Application
         var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
         Directory.CreateDirectory(dbDirectory);
 
-        if (options.ResetDatabaseOnStartup && File.Exists(fullDbPath))
-        {
-            File.Delete(fullDbPath);
-        }
 
         options.DatabaseFullPath = fullDbPath;
 
         Services = new ServiceCollection()
             .AddPdvInfrastructure(options, fullDbPath)
             .AddSingleton<IErrorFileLogger, ErrorFileLogger>()
+            .AddSingleton<IErrorLogger>(sp => sp.GetRequiredService<IErrorFileLogger>())
             .AddSingleton<SessionContext>()
             .AddTransient<MainViewModel>()
             .AddTransient<LoginViewModel>()

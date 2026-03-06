@@ -105,6 +105,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _errorLogger.LogError("Falha na integração manual de dados", ex);
             StatusMessage = $"Falha ao integrar dados: {ex.Message}";
         }
         finally
@@ -141,6 +142,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _errorLogger.LogError("Falha ao abrir caixa", ex);
             StatusMessage = ex.Message;
             return false;
         }
@@ -173,6 +175,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _errorLogger.LogError("Falha ao encerrar caixa", ex);
             StatusMessage = ex.Message;
             return false;
         }
