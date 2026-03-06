@@ -1,10 +1,8 @@
 using Microsoft.Data.Sqlite;
-using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
 using Pdv.Infrastructure.Persistence;
 using Pdv.Infrastructure.Repositories;
 using Pdv.Infrastructure.Setup;
-using System.Net;
 using Xunit;
 
 namespace Pdv.Tests;
@@ -90,8 +88,7 @@ public sealed class InfrastructureSchemaTests
         var dbPath = CreateTempDbPath();
         var factory = new SqliteConnectionFactory(dbPath);
         var initializer = new DatabaseInitializer(factory);
-        var cashApiClient = new FakeCashRegisterApiClient();
-        var cashRegisterRepository = new CashRegisterRepository(factory, cashApiClient);
+        var cashRegisterRepository = new CashRegisterRepository(factory);
 
         await initializer.InitializeAsync();
 
@@ -131,16 +128,15 @@ VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLET
         var pendingWithdrawals = await ScalarIntAsync(verifyConnection, "SELECT COUNT(1) FROM outbox_events WHERE type = 'CashWithdrawalCreated' AND status = 'Pending';");
 
         Assert.Equal(1, pendingWithdrawals);
-        Assert.Equal(0, cashApiClient.WithdrawalCalls);
     }
 
     [Fact]
-    public async Task CloseAsync_ShouldCloseLocalSession_WhenRemoteCloseReturnsNotFound()
+    public async Task CloseAsync_ShouldCloseOpenSession()
     {
         var dbPath = CreateTempDbPath();
         var factory = new SqliteConnectionFactory(dbPath);
         var initializer = new DatabaseInitializer(factory);
-        var cashRegisterRepository = new CashRegisterRepository(factory, new NotFoundOnCloseCashRegisterApiClient());
+        var cashRegisterRepository = new CashRegisterRepository(factory);
 
         await initializer.InitializeAsync();
 
@@ -155,36 +151,6 @@ VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLET
         Assert.Null(openSession);
         Assert.NotNull(closedSession);
         Assert.Equal("CLOSED", closedSession!.Status);
-    }
-
-
-    private sealed class FakeCashRegisterApiClient : ICashRegisterApiClient
-    {
-        public int WithdrawalCalls { get; private set; }
-
-        public Task<string> OpenAsync(string operatorId, decimal amount, DateTimeOffset datetime, CancellationToken cancellationToken = default)
-            => Task.FromResult(Guid.NewGuid().ToString());
-
-        public Task CloseAsync(string sessionId, string operatorId, decimal amount, DateTimeOffset datetime, string? notes, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task RegisterWithdrawalAsync(string sessionId, string operatorId, decimal amount, string description, CancellationToken cancellationToken = default)
-        {
-            WithdrawalCalls++;
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class NotFoundOnCloseCashRegisterApiClient : ICashRegisterApiClient
-    {
-        public Task<string> OpenAsync(string operatorId, decimal amount, DateTimeOffset datetime, CancellationToken cancellationToken = default)
-            => Task.FromResult(Guid.NewGuid().ToString());
-
-        public Task CloseAsync(string sessionId, string operatorId, decimal amount, DateTimeOffset datetime, string? notes, CancellationToken cancellationToken = default)
-            => throw new HttpRequestException("Not found", null, HttpStatusCode.NotFound);
-
-        public Task RegisterWithdrawalAsync(string sessionId, string operatorId, decimal amount, string description, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
     }
 
     private static async Task<bool> TableExistsAsync(SqliteConnection connection, string table)
