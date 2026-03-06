@@ -130,6 +130,27 @@ VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, 'COMPLET
         Assert.Equal(1, pendingWithdrawals);
     }
 
+
+    [Fact]
+    public async Task SaveRemoteSessionIdAsync_ShouldPersistRemoteSessionId()
+    {
+        var dbPath = CreateTempDbPath();
+        var factory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(factory);
+        var cashRegisterRepository = new CashRegisterRepository(factory);
+
+        await initializer.InitializeAsync();
+
+        var session = await cashRegisterRepository.OpenAsync(1000, "user-1", DateTimeOffset.UtcNow);
+        await cashRegisterRepository.SaveRemoteSessionIdAsync(session.Id, "remote-session-123");
+
+        var remoteSessionId = await cashRegisterRepository.GetRemoteSessionIdAsync(session.Id);
+        var openSession = await cashRegisterRepository.GetOpenSessionAsync();
+
+        Assert.Equal("remote-session-123", remoteSessionId);
+        Assert.Equal("remote-session-123", openSession?.RemoteSessionId);
+    }
+
     [Fact]
     public async Task CloseAsync_ShouldCloseOpenSession()
     {

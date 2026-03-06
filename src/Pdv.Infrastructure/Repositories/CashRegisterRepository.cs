@@ -18,7 +18,7 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
         var cmd = connection.CreateCommand();
-        cmd.CommandText = @"SELECT id, opened_at, closed_at, opening_amount_cents, closing_amount_cents, status, business_date, opened_by_user_id, closed_by_user_id FROM cash_register_sessions WHERE status = 'OPEN' ORDER BY opened_at DESC LIMIT 1;";
+        cmd.CommandText = @"SELECT id, opened_at, closed_at, opening_amount_cents, closing_amount_cents, status, business_date, opened_by_user_id, closed_by_user_id, remote_session_id FROM cash_register_sessions WHERE status = 'OPEN' ORDER BY opened_at DESC LIMIT 1;";
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadSession(reader) : null;
     }
@@ -28,7 +28,7 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
         var cmd = connection.CreateCommand();
-        cmd.CommandText = @"SELECT id, opened_at, closed_at, opening_amount_cents, closing_amount_cents, status, business_date, opened_by_user_id, closed_by_user_id FROM cash_register_sessions WHERE status = 'CLOSED' ORDER BY closed_at DESC LIMIT 1;";
+        cmd.CommandText = @"SELECT id, opened_at, closed_at, opening_amount_cents, closing_amount_cents, status, business_date, opened_by_user_id, closed_by_user_id, remote_session_id FROM cash_register_sessions WHERE status = 'CLOSED' ORDER BY closed_at DESC LIMIT 1;";
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadSession(reader) : null;
     }
@@ -54,7 +54,7 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
         var cmd = connection.CreateCommand();
-        cmd.CommandText = @"INSERT INTO cash_register_sessions (id, opened_at, closed_at, opening_amount_cents, closing_amount_cents, status, business_date, opened_by_user_id, closed_by_user_id) VALUES ($id, $openedAt, NULL, $openingAmountCents, NULL, 'OPEN', $businessDate, $openedByUserId, NULL);";
+        cmd.CommandText = @"INSERT INTO cash_register_sessions (id, opened_at, closed_at, opening_amount_cents, closing_amount_cents, status, business_date, opened_by_user_id, closed_by_user_id, remote_session_id) VALUES ($id, $openedAt, NULL, $openingAmountCents, NULL, 'OPEN', $businessDate, $openedByUserId, NULL, NULL);";
         cmd.Parameters.AddWithValue("$id", session.Id);
         cmd.Parameters.AddWithValue("$openedAt", session.OpenedAt.ToString("O"));
         cmd.Parameters.AddWithValue("$openingAmountCents", session.OpeningAmountCents);
@@ -321,6 +321,47 @@ ORDER BY created_at DESC;";
         return openSessionValue is string openSessionId ? openSessionId : null;
     }
 
+
+
+    public async Task<string?> GetRemoteSessionIdAsync(string localSessionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(localSessionId))
+        {
+            return null;
+        }
+
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT remote_session_id FROM cash_register_sessions WHERE id = $id LIMIT 1;";
+        command.Parameters.AddWithValue("$id", localSessionId);
+
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        return value is string remoteSessionId && !string.IsNullOrWhiteSpace(remoteSessionId)
+            ? remoteSessionId
+            : null;
+    }
+
+    public async Task SaveRemoteSessionIdAsync(string localSessionId, string remoteSessionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(localSessionId) || string.IsNullOrWhiteSpace(remoteSessionId))
+        {
+            return;
+        }
+
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"UPDATE cash_register_sessions
+SET remote_session_id = $remoteSessionId
+WHERE id = $localSessionId;";
+        command.Parameters.AddWithValue("$remoteSessionId", remoteSessionId);
+        command.Parameters.AddWithValue("$localSessionId", localSessionId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private static CashRegisterSession ReadSession(Microsoft.Data.Sqlite.SqliteDataReader reader) => new()
     {
         Id = reader.GetString(0),
@@ -331,6 +372,7 @@ ORDER BY created_at DESC;";
         Status = reader.GetString(5),
         BusinessDate = reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
         OpenedByUserId = reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
-        ClosedByUserId = reader.IsDBNull(8) ? null : reader.GetString(8)
+        ClosedByUserId = reader.IsDBNull(8) ? null : reader.GetString(8),
+        RemoteSessionId = reader.IsDBNull(9) ? null : reader.GetString(9)
     };
 }
