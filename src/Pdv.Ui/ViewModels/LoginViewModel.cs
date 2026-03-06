@@ -10,6 +10,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private readonly IAuthApiClient _authApiClient;
     private readonly ICashRegisterRepository _cashRegisters;
     private readonly IUserRepository _users;
+    private readonly IStoreSettingsApiClient _storeSettingsApiClient;
     private readonly SessionContext _session;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
     private readonly IErrorFileLogger _errorLogger;
@@ -20,11 +21,13 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private string _storeName = "Sua loja";
     private string _storeDocument = "CNPJ não informado";
     private string _storeAddress = "Endereço não informado";
+    private string _storeLogoPath = string.Empty;
 
     public LoginViewModel(
         IAuthApiClient authApiClient,
         ICashRegisterRepository cashRegisters,
         IUserRepository users,
+        IStoreSettingsApiClient storeSettingsApiClient,
         SessionContext session,
         IStoreSettingsRepository storeSettingsRepository,
         IErrorFileLogger errorLogger)
@@ -32,6 +35,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         _authApiClient = authApiClient;
         _cashRegisters = cashRegisters;
         _users = users;
+        _storeSettingsApiClient = storeSettingsApiClient;
         _session = session;
         _storeSettingsRepository = storeSettingsRepository;
         _errorLogger = errorLogger;
@@ -46,6 +50,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     public string StoreName { get => _storeName; private set => SetField(ref _storeName, value); }
     public string StoreDocument { get => _storeDocument; private set => SetField(ref _storeDocument, value); }
     public string StoreAddress { get => _storeAddress; private set => SetField(ref _storeAddress, value); }
+    public string StoreLogoPath { get => _storeLogoPath; private set => SetField(ref _storeLogoPath, value); }
 
     public async Task<bool> LoginAsync()
     {
@@ -106,20 +111,35 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     {
         try
         {
-            var store = await _storeSettingsRepository.GetCurrentAsync();
-            if (store is null)
+            var localStore = await _storeSettingsRepository.GetCurrentAsync();
+            ApplyStoreInfo(localStore);
+
+            var remoteStore = await _storeSettingsApiClient.GetSettingsAsync();
+            if (remoteStore is null)
             {
                 return;
             }
 
-            StoreName = string.IsNullOrWhiteSpace(store.StoreName) ? "Sua loja" : store.StoreName;
-            StoreDocument = string.IsNullOrWhiteSpace(store.Cnpj) ? "CNPJ não informado" : $"CNPJ: {store.Cnpj}";
-            StoreAddress = string.IsNullOrWhiteSpace(store.Address) ? "Endereço não informado" : store.Address;
+            await _storeSettingsRepository.UpsertAsync(remoteStore);
+            ApplyStoreInfo(remoteStore);
         }
         catch (Exception ex)
         {
             _errorLogger.LogError("Falha ao carregar informações da loja na tela de login", ex);
         }
+    }
+
+    private void ApplyStoreInfo(Pdv.Application.Domain.StoreSettings? store)
+    {
+        if (store is null)
+        {
+            return;
+        }
+
+        StoreName = string.IsNullOrWhiteSpace(store.StoreName) ? "Sua loja" : store.StoreName;
+        StoreDocument = string.IsNullOrWhiteSpace(store.Cnpj) ? "CNPJ não informado" : $"CNPJ: {store.Cnpj}";
+        StoreAddress = string.IsNullOrWhiteSpace(store.Address) ? "Endereço não informado" : store.Address;
+        StoreLogoPath = store.LogoLocalPath;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
