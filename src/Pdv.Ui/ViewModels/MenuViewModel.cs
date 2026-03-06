@@ -88,56 +88,85 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         }
     }
 
-    public async Task OpenCashRegisterAsync(string openAmount)
+    public async Task<bool> OpenCashRegisterAsync(string openAmount)
     {
+        if (IsBusy) return false;
+
         if (_session.CurrentUser is null)
         {
             StatusMessage = "Sessão de usuário inválida.";
-            return;
+            return false;
         }
 
         if (!MoneyFormatter.TryParseToCents(openAmount, out var amount))
         {
             StatusMessage = "Valor de abertura inválido.";
-            return;
+            return false;
         }
 
+        IsBusy = true;
         try
         {
+            StatusMessage = "Abrindo caixa...";
             _session.OpenCashRegister = await _cashRegisters.OpenAsync(amount, _session.CurrentUser.Id, DateTimeOffset.Now);
             await RefreshCashStatusAsync();
             StatusMessage = "Caixa aberto com sucesso.";
             OnPropertyChanged(nameof(CashStatus));
             OnPropertyChanged(nameof(CurrentCashBalance));
+            return true;
         }
         catch (Exception ex)
         {
             StatusMessage = ex.Message;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
-    public async Task CloseCashRegisterAsync()
+    public async Task<bool> CloseCashRegisterAsync()
     {
+        if (IsBusy) return false;
+
         if (_session.CurrentUser is null || _session.OpenCashRegister is null)
         {
             StatusMessage = "Não há caixa aberto para encerramento.";
-            return;
+            return false;
         }
 
-        await _cashRegisters.CloseAsync(_session.OpenCashRegister.Id, _session.CurrentUser.Id, DateTimeOffset.Now);
-        var lastClosedSession = await _cashRegisters.GetLastClosedSessionAsync();
-        LastClosedCashBalanceCents = lastClosedSession?.ClosingAmountCents ?? 0;
-        await RefreshCashStatusAsync();
-        _session.OpenCashRegister = null;
-        CurrentCashBalanceCents = 0;
-        StatusMessage = "Caixa encerrado com sucesso.";
-        OnPropertyChanged(nameof(CashStatus));
-        OnPropertyChanged(nameof(LastClosedCashBalance));
-        OnPropertyChanged(nameof(CurrentCashBalance));
+        IsBusy = true;
+        try
+        {
+            StatusMessage = "Encerrando caixa...";
+            await _cashRegisters.CloseAsync(_session.OpenCashRegister.Id, _session.CurrentUser.Id, DateTimeOffset.Now);
+            var lastClosedSession = await _cashRegisters.GetLastClosedSessionAsync();
+            LastClosedCashBalanceCents = lastClosedSession?.ClosingAmountCents ?? 0;
+            await RefreshCashStatusAsync();
+            _session.OpenCashRegister = null;
+            CurrentCashBalanceCents = 0;
+            StatusMessage = "Caixa encerrado com sucesso.";
+            OnPropertyChanged(nameof(CashStatus));
+            OnPropertyChanged(nameof(LastClosedCashBalance));
+            OnPropertyChanged(nameof(CurrentCashBalance));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     public async Task<bool> RegisterWithdrawalAsync(string amount, string reason)
     {
+        if (IsBusy) return false;
+
         if (_session.CurrentUser is null || _session.OpenCashRegister is null)
         {
             StatusMessage = "Não há caixa aberto para sangria.";
@@ -150,8 +179,10 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             return false;
         }
 
+        IsBusy = true;
         try
         {
+            StatusMessage = "Registrando sangria...";
             await _cashRegisters.RegisterWithdrawalAsync(_session.OpenCashRegister.Id, amountCents, reason, _session.CurrentUser.Id, DateTimeOffset.Now);
             await RefreshCashStatusAsync();
             StatusMessage = "Sangria registrada com sucesso.";
@@ -163,6 +194,10 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             _errorLogger.LogError("Falha ao registrar sangria", ex);
             StatusMessage = $"Falha ao registrar sangria: {ex.Message}";
             return false;
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 

@@ -63,7 +63,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string BarcodeInput { get => _barcodeInput; set => SetField(ref _barcodeInput, value); }
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
     public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
-    public string OfflineStatus => "Operação offline com integração Lovable";
+    public string OfflineStatus => "Integração automática ativa";
     public string StoreName { get => _storeName; set => SetField(ref _storeName, value); }
     public string StoreCnpj { get => _storeCnpj; set => SetField(ref _storeCnpj, value); }
     public string StoreAddress { get => _storeAddress; set => SetField(ref _storeAddress, value); }
@@ -232,6 +232,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
+    public bool UpdateSelectedItemQuantity(string? quantityText)
+    {
+        return UpdateItemQuantity(SelectedItem, quantityText);
+    }
+
     public async Task<Sale?> FinalizeAsync(PaymentMethod paymentMethod)
     {
         if (IsBusy)
@@ -289,9 +294,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
 
-            CancelSale();
+            var sent = await _syncService.RunOnceAsync();
             var pending = await _outboxRepository.GetPendingCountAsync();
-            StatusMessage = $"Venda finalizada ({paymentMethod}) e salva offline. Outbox pendente: {pending}";
+
+            CancelSale();
+            StatusMessage = sent > 0
+                ? $"Venda finalizada ({paymentMethod}) e integrada automaticamente. Pendentes: {pending}."
+                : $"Venda finalizada ({paymentMethod}) e salva offline. Outbox pendente: {pending}.";
             return sale;
         }
         finally

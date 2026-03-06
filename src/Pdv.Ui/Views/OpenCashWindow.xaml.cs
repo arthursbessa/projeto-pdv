@@ -17,7 +17,12 @@ public partial class OpenCashWindow : Window
             return;
         }
 
-        await vm.OpenCashRegisterAsync(AmountTextBox.Text);
+        var success = await vm.OpenCashRegisterAsync(AmountTextBox.Text);
+        if (!success)
+        {
+            return;
+        }
+
         DialogResult = true;
         Close();
     }

@@ -1,8 +1,11 @@
 <Window x:Class="Pdv.Ui.Views.FinalizeSaleWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:Pdv.Ui.Converters"
         Title="Finalizar venda" Height="340" Width="430" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Background="#EFF6FF" KeyDown="Window_KeyDown">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:InverseBooleanConverter x:Key="InverseBoolConverter"/>
         <Style TargetType="Button">
             <Setter Property="Background" Value="#2563EB"/>
             <Setter Property="Foreground" Value="White"/>
@@ -35,20 +38,23 @@
 
         <Border Grid.Row="2" Margin="0,14,0,0" Background="White" CornerRadius="12" Padding="14">
             <StackPanel>
-                <RadioButton x:Name="CashOption" Content="Dinheiro" IsChecked="True" Margin="0,0,0,8" FontSize="15"/>
-                <RadioButton x:Name="CardOption" Content="Cartão" Margin="0,0,0,8" FontSize="15"/>
-                <RadioButton x:Name="PixOption" Content="PIX" FontSize="15"/>
+                <RadioButton x:Name="CashOption" Content="Dinheiro" IsChecked="True" Margin="0,0,0,8" FontSize="15" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                <RadioButton x:Name="CardOption" Content="Cartão" Margin="0,0,0,8" FontSize="15" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                <RadioButton x:Name="PixOption" Content="PIX" FontSize="15" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
 
                 <Separator Margin="0,10,0,10"/>
                 <CheckBox x:Name="PrintCouponOption"
                           Content="Deseja imprimir o cupom fiscal ao finalizar?"
-                          FontSize="14"/>
+                          FontSize="14"
+                          IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
             </StackPanel>
         </Border>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
-            <Button Content="Cancelar (ESC)" Padding="14,8" Margin="0,0,8,0" Click="Cancel_Click" Background="#64748B" BorderBrush="#64748B"/>
-            <Button Content="Confirmar (ENTER)" Padding="14,8" Click="Confirm_Click"/>
+            <Button Content="Cancelar (ESC)" Padding="14,8" Margin="0,0,8,0" Click="Cancel_Click" Background="#64748B" BorderBrush="#64748B" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+            <Button Content="Confirmar (ENTER)" Padding="14,8" Click="Confirm_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
         </StackPanel>
+
+        <ProgressBar Grid.Row="3" Height="6" Margin="0,48,0,0" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
     </Grid>
 </Window>
