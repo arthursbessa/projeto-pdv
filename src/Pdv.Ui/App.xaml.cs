@@ -34,6 +34,11 @@ public partial class App : System.Windows.Application
         var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
         Directory.CreateDirectory(dbDirectory);
 
+        if (options.ResetDatabaseOnStartup && File.Exists(fullDbPath))
+        {
+            File.Delete(fullDbPath);
+        }
+
         options.DatabaseFullPath = fullDbPath;
 
         Services = new ServiceCollection()
