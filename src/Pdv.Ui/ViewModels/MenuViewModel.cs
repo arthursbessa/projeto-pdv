@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
@@ -13,6 +14,8 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private readonly ICashRegisterRepository _cashRegisters;
     private readonly DataIntegrationService _dataIntegrationService;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
+    private readonly IOutboxRepository _outboxRepository;
+    private readonly SyncService _syncService;
     private readonly IErrorFileLogger _errorLogger;
     private string _statusMessage = "Gerencie seu caixa e módulos.";
     private bool _isBusy;
@@ -21,12 +24,21 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private int _lastClosedCashBalanceCents;
     private int _currentCashBalanceCents;
 
-    public MenuViewModel(SessionContext session, ICashRegisterRepository cashRegisters, DataIntegrationService dataIntegrationService, IStoreSettingsRepository storeSettingsRepository, IErrorFileLogger errorLogger)
+    public MenuViewModel(
+        SessionContext session,
+        ICashRegisterRepository cashRegisters,
+        DataIntegrationService dataIntegrationService,
+        IStoreSettingsRepository storeSettingsRepository,
+        IOutboxRepository outboxRepository,
+        SyncService syncService,
+        IErrorFileLogger errorLogger)
     {
         _session = session;
         _cashRegisters = cashRegisters;
         _dataIntegrationService = dataIntegrationService;
         _storeSettingsRepository = storeSettingsRepository;
+        _outboxRepository = outboxRepository;
+        _syncService = syncService;
         _errorLogger = errorLogger;
     }
 
@@ -40,6 +52,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     public int CurrentCashBalanceCents { get => _currentCashBalanceCents; private set => SetField(ref _currentCashBalanceCents, value); }
     public string CurrentCashBalance => MoneyFormatter.FormatFromCents(CurrentCashBalanceCents);
     public string CashStatus => _session.OpenCashRegister is null ? "Caixa fechado" : $"Caixa aberto em {_session.OpenCashRegister.BusinessDate}";
+    public ObservableCollection<IntegrationStatusItemViewModel> IntegrationStatuses { get; } = [];
 
     public async Task LoadAsync()
     {
@@ -47,6 +60,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         var lastClosedSession = await _cashRegisters.GetLastClosedSessionAsync();
         LastClosedCashBalanceCents = lastClosedSession?.ClosingAmountCents ?? 0;
         await RefreshCashStatusAsync();
+        await RefreshIntegrationStatusesAsync();
 
         var settings = await _storeSettingsRepository.GetCurrentAsync();
         if (settings is not null)
@@ -60,6 +74,16 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CurrentCashBalance));
     }
 
+    public async Task RefreshIntegrationStatusesAsync()
+    {
+        var pendingByType = await _outboxRepository.GetPendingCountsByTypeAsync();
+        IntegrationStatuses.Clear();
+        IntegrationStatuses.Add(BuildStatus("Abertura de caixa", "CashRegisterOpened", pendingByType));
+        IntegrationStatuses.Add(BuildStatus("Encerramento de caixa", "CashRegisterClosed", pendingByType));
+        IntegrationStatuses.Add(BuildStatus("Sangria", "CashWithdrawalCreated", pendingByType));
+        IntegrationStatuses.Add(BuildStatus("Vendas", "SaleCreated", pendingByType));
+    }
+
     public async Task IntegratePendingSalesAsync()
     {
         if (IsBusy) return;
@@ -67,7 +91,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            StatusMessage = "Integrando vendas, usuários, produtos e configurações...";
+            StatusMessage = "Integrando dados pendentes manualmente...";
             var result = await _dataIntegrationService.IntegrateAllAsync();
             var settings = await _storeSettingsRepository.GetCurrentAsync();
             if (settings is not null)
@@ -76,7 +100,8 @@ public sealed class MenuViewModel : INotifyPropertyChanged
                 StoreLogoPath = settings.LogoLocalPath;
             }
 
-            StatusMessage = $"Integração concluída. Vendas: {result.SentSales} enviadas ({result.PendingSales} pendentes). Produtos sincronizados: {result.SyncedProducts}. Usuários sincronizados: {result.SyncedUsers}. Configurações: {(result.StoreSettingsSynced ? "ok" : "sem atualização")}.";
+            await RefreshIntegrationStatusesAsync();
+            StatusMessage = $"Integração concluída. Enviadas: {result.SentSales}. Pendentes: {result.PendingSales}.";
         }
         catch (Exception ex)
         {
@@ -90,8 +115,6 @@ public sealed class MenuViewModel : INotifyPropertyChanged
 
     public async Task<bool> OpenCashRegisterAsync(string openAmount)
     {
-        if (IsBusy) return false;
-
         if (_session.CurrentUser is null)
         {
             StatusMessage = "Sessão de usuário inválida.";
@@ -104,15 +127,16 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             return false;
         }
 
-        IsBusy = true;
         try
         {
-            StatusMessage = "Abrindo caixa...";
+            StatusMessage = "Abrindo caixa localmente e integrando em segundo plano...";
             _session.OpenCashRegister = await _cashRegisters.OpenAsync(amount, _session.CurrentUser.Id, DateTimeOffset.Now);
             await RefreshCashStatusAsync();
-            StatusMessage = "Caixa aberto com sucesso.";
             OnPropertyChanged(nameof(CashStatus));
             OnPropertyChanged(nameof(CurrentCashBalance));
+            await RefreshIntegrationStatusesAsync();
+            TriggerBackgroundIntegration();
+            StatusMessage = "Caixa aberto com sucesso. Integração assíncrona iniciada.";
             return true;
         }
         catch (Exception ex)
@@ -120,33 +144,28 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             StatusMessage = ex.Message;
             return false;
         }
-        finally
-        {
-            IsBusy = false;
-        }
     }
 
     public async Task<bool> CloseCashRegisterAsync()
     {
-        if (IsBusy) return false;
-
         if (_session.CurrentUser is null || _session.OpenCashRegister is null)
         {
             StatusMessage = "Não há caixa aberto para encerramento.";
             return false;
         }
 
-        IsBusy = true;
         try
         {
-            StatusMessage = "Encerrando caixa...";
+            StatusMessage = "Encerrando caixa localmente e integrando em segundo plano...";
             await _cashRegisters.CloseAsync(_session.OpenCashRegister.Id, _session.CurrentUser.Id, DateTimeOffset.Now);
             var lastClosedSession = await _cashRegisters.GetLastClosedSessionAsync();
             LastClosedCashBalanceCents = lastClosedSession?.ClosingAmountCents ?? 0;
             await RefreshCashStatusAsync();
             _session.OpenCashRegister = null;
             CurrentCashBalanceCents = 0;
-            StatusMessage = "Caixa encerrado com sucesso.";
+            await RefreshIntegrationStatusesAsync();
+            TriggerBackgroundIntegration();
+            StatusMessage = "Caixa encerrado com sucesso. Integração assíncrona iniciada.";
             OnPropertyChanged(nameof(CashStatus));
             OnPropertyChanged(nameof(LastClosedCashBalance));
             OnPropertyChanged(nameof(CurrentCashBalance));
@@ -157,16 +176,10 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             StatusMessage = ex.Message;
             return false;
         }
-        finally
-        {
-            IsBusy = false;
-        }
     }
 
     public async Task<bool> RegisterWithdrawalAsync(string amount, string reason)
     {
-        if (IsBusy) return false;
-
         if (_session.CurrentUser is null || _session.OpenCashRegister is null)
         {
             StatusMessage = "Não há caixa aberto para sangria.";
@@ -179,13 +192,14 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             return false;
         }
 
-        IsBusy = true;
         try
         {
-            StatusMessage = "Registrando sangria...";
+            StatusMessage = "Registrando sangria localmente e integrando em segundo plano...";
             await _cashRegisters.RegisterWithdrawalAsync(_session.OpenCashRegister.Id, amountCents, reason, _session.CurrentUser.Id, DateTimeOffset.Now);
             await RefreshCashStatusAsync();
-            StatusMessage = "Sangria registrada com sucesso.";
+            await RefreshIntegrationStatusesAsync();
+            TriggerBackgroundIntegration();
+            StatusMessage = "Sangria registrada com sucesso. Integração assíncrona iniciada.";
             OnPropertyChanged(nameof(CurrentCashBalance));
             return true;
         }
@@ -195,17 +209,39 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             StatusMessage = $"Falha ao registrar sangria: {ex.Message}";
             return false;
         }
-        finally
-        {
-            IsBusy = false;
-        }
     }
-
 
     public async Task RefreshCashStatusAsync()
     {
         var snapshot = await _cashRegisters.GetCashStatusSnapshotAsync(DateTimeOffset.Now);
         CurrentCashBalanceCents = snapshot.CurrentBalanceCents;
+    }
+
+    private IntegrationStatusItemViewModel BuildStatus(string name, string eventType, IReadOnlyDictionary<string, int> pendingByType)
+    {
+        pendingByType.TryGetValue(eventType, out var pendingCount);
+        return new IntegrationStatusItemViewModel
+        {
+            Name = name,
+            IsIntegrated = pendingCount == 0,
+            PendingCount = pendingCount
+        };
+    }
+
+    private void TriggerBackgroundIntegration()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _syncService.RunOnceAsync();
+                await App.Current.Dispatcher.InvokeAsync(async () => await RefreshIntegrationStatusesAsync());
+            }
+            catch (Exception ex)
+            {
+                _errorLogger.LogError("Falha na integração assíncrona", ex);
+            }
+        });
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -46,11 +46,8 @@ public partial class MenuWindow : Window
         window.ShowDialog();
     }
 
-    private async void IntegrateData_Click(object sender, RoutedEventArgs e)
+    private void OpenIntegrations_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is MenuViewModel vm)
-        {
-            await vm.IntegratePendingSalesAsync();
-        }
+        new IntegrationsWindow { Owner = this, DataContext = DataContext }.ShowDialog();
     }
 }

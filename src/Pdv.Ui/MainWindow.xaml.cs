@@ -75,7 +75,7 @@ public partial class MainWindow : Window
         FocusBarcode();
     }
 
-    private async void Window_KeyDown(object sender, KeyEventArgs e)
+    private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         if (DataContext is not MainViewModel vm) return;
 
