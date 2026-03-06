@@ -32,6 +32,11 @@ public sealed class HttpSalesApiClient : ISalesApiClient
         request.Headers.Add("x-pdv-token", _options.TerminalToken);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"Falha ao enviar venda para '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}");
+        }
     }
 }

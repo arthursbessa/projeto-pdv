@@ -293,9 +293,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var payload = JsonSerializer.Serialize(new
             {
+                sale_id = sale.SaleId,
+                created_at = sale.CreatedAt,
                 session_id = _session.OpenCashRegister.Id,
                 payment_method = sale.PaymentMethod.ToString().ToLowerInvariant(),
-                items = sale.Items.Select(x => new { product_id = x.ProductId, quantity = x.Quantity })
+                payment_method_code = sale.PaymentMethod.ToString().ToUpperInvariant(),
+                payment_method_id = (int)sale.PaymentMethod,
+                total_cents = sale.TotalCents,
+                operator_id = _session.CurrentUser?.Id,
+                items = sale.Items.Select(x => new
+                {
+                    product_id = x.ProductId,
+                    quantity = x.Quantity,
+                    price_cents = x.PriceCents,
+                    subtotal_cents = x.SubtotalCents
+                })
             });
 
             await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
