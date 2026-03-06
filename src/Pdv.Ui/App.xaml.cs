@@ -34,6 +34,7 @@ public partial class App : System.Windows.Application
         var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
         Directory.CreateDirectory(dbDirectory);
 
+
         options.DatabaseFullPath = fullDbPath;
 
         Services = new ServiceCollection()
