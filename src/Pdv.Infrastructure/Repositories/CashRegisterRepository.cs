@@ -45,11 +45,21 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
             throw new InvalidOperationException("Já existe um caixa aberto.");
         }
 
-        var remoteSessionId = await _cashRegisterApiClient.OpenAsync(userId, openingAmountCents / 100m, now, cancellationToken);
+        var sessionId = Guid.NewGuid().ToString();
+        var shouldCreateOutbox = false;
+
+        try
+        {
+            sessionId = await _cashRegisterApiClient.OpenAsync(userId, openingAmountCents / 100m, now, cancellationToken);
+        }
+        catch
+        {
+            shouldCreateOutbox = true;
+        }
 
         var session = new CashRegisterSession
         {
-            Id = remoteSessionId,
+            Id = sessionId,
             OpenedAt = now,
             OpeningAmountCents = openingAmountCents,
             Status = "OPEN",
@@ -67,6 +77,21 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         cmd.Parameters.AddWithValue("$businessDate", session.BusinessDate);
         cmd.Parameters.AddWithValue("$openedByUserId", userId);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
+
+        if (shouldCreateOutbox)
+        {
+            var outboxPayload = JsonSerializer.Serialize(new
+            {
+                action = "open",
+                operator_id = userId,
+                amount = openingAmountCents / 100m,
+                datetime = now.ToString("O"),
+                local_session_id = sessionId
+            });
+
+            await AddOutboxEventAsync(connection, "CashRegisterOpened", outboxPayload, cancellationToken);
+        }
+
         return session;
     }
 
@@ -80,6 +105,7 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         var openingAmount = await GetOpeningAmountAsync(connection, sessionId, cancellationToken);
         var closingAmountCents = openingAmount + totalSales - totalWithdrawals;
 
+        var shouldCreateOutbox = false;
         try
         {
             await _cashRegisterApiClient.CloseAsync(sessionId, userId, closingAmountCents / 100m, now, null, cancellationToken);
@@ -88,6 +114,10 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         {
             // Sessões antigas podem já ter sido removidas/encerradas remotamente.
             // Ainda assim precisamos fechar o caixa local para permitir o login.
+        }
+        catch
+        {
+            shouldCreateOutbox = true;
         }
 
         var cmd = connection.CreateCommand();
@@ -100,6 +130,21 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         if (count == 0)
         {
             throw new InvalidOperationException("Caixa não encontrado ou já está fechado.");
+        }
+
+        if (shouldCreateOutbox)
+        {
+            var outboxPayload = JsonSerializer.Serialize(new
+            {
+                action = "close",
+                session_id = sessionId,
+                operator_id = userId,
+                amount = closingAmountCents / 100m,
+                datetime = now.ToString("O"),
+                notes = (string?)null
+            });
+
+            await AddOutboxEventAsync(connection, "CashRegisterClosed", outboxPayload, cancellationToken);
         }
     }
 
@@ -126,20 +171,32 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         cmd.Parameters.AddWithValue("$createdByUserId", existingUserId ?? (object)DBNull.Value);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
-        var outboxPayload = JsonSerializer.Serialize(new
+        try
         {
-            session_id = sessionId,
-            operator_id = userId,
-            amount = amountCents / 100m,
-            description = reason
-        });
+            await _cashRegisterApiClient.RegisterWithdrawalAsync(sessionId, userId, amountCents / 100m, reason, cancellationToken);
+        }
+        catch
+        {
+            var outboxPayload = JsonSerializer.Serialize(new
+            {
+                session_id = sessionId,
+                operator_id = userId,
+                amount = amountCents / 100m,
+                description = reason
+            });
 
+            await AddOutboxEventAsync(connection, "CashWithdrawalCreated", outboxPayload, cancellationToken);
+        }
+    }
+
+    private static async Task AddOutboxEventAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string type, string payloadJson, CancellationToken cancellationToken)
+    {
         var outboxCommand = connection.CreateCommand();
         outboxCommand.CommandText = @"INSERT INTO outbox_events (id, type, payload_json, status, attempts, next_retry_at, last_error, created_at, sent_at)
 VALUES ($id, $type, $payloadJson, 'Pending', 0, NULL, NULL, $createdAt, NULL);";
         outboxCommand.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-        outboxCommand.Parameters.AddWithValue("$type", "CashWithdrawalCreated");
-        outboxCommand.Parameters.AddWithValue("$payloadJson", outboxPayload);
+        outboxCommand.Parameters.AddWithValue("$type", type);
+        outboxCommand.Parameters.AddWithValue("$payloadJson", payloadJson);
         outboxCommand.Parameters.AddWithValue("$createdAt", DateTimeOffset.UtcNow.ToString("O"));
         await outboxCommand.ExecuteNonQueryAsync(cancellationToken);
     }

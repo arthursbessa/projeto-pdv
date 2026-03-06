@@ -52,14 +52,14 @@ public partial class MainWindow : Window
         FocusBarcode();
     }
 
-    private async void Finalize_Click(object sender, RoutedEventArgs e)
+    private void Finalize_Click(object sender, RoutedEventArgs e)
     {
-        await OpenFinalizeDialogAsync();
+        OpenFinalizeDialogAsync();
     }
 
-    private async Task OpenFinalizeDialogAsync()
+    private void OpenFinalizeDialogAsync()
     {
-        if (DataContext is not MainViewModel vm)
+        if (DataContext is not MainViewModel)
         {
             return;
         }
@@ -67,13 +67,9 @@ public partial class MainWindow : Window
         var modal = new FinalizeSaleWindow { Owner = this };
         var result = modal.ShowDialog();
 
-        if (result == true && modal.SelectedPaymentMethod.HasValue)
+        if (result == true && modal.CompletedSale is not null && modal.ShouldPrintCoupon)
         {
-            var sale = await vm.FinalizeAsync(modal.SelectedPaymentMethod.Value);
-            if (sale is not null && modal.ShouldPrintCoupon)
-            {
-                PrintFiscalCoupon(sale);
-            }
+            PrintFiscalCoupon(modal.CompletedSale);
         }
 
         FocusBarcode();
@@ -92,7 +88,7 @@ public partial class MainWindow : Window
 
         if (e.Key == Key.F2)
         {
-            await OpenFinalizeDialogAsync();
+            OpenFinalizeDialogAsync();
             e.Handled = true;
         }
         else if (e.Key == Key.F4)
@@ -107,6 +103,75 @@ public partial class MainWindow : Window
             FocusBarcode();
             e.Handled = true;
         }
+        else if (e.Key == Key.F6)
+        {
+            OpenQuantityDialog();
+            e.Handled = true;
+        }
+    }
+
+    private void ChangeQuantity_Click(object sender, RoutedEventArgs e)
+    {
+        OpenQuantityDialog();
+    }
+
+    private void OpenQuantityDialog()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (vm.SelectedItem is null)
+        {
+            vm.StatusMessage = "Selecione um item para alterar a quantidade.";
+            return;
+        }
+
+        var quantityTextBox = new TextBox
+        {
+            Text = vm.SelectedItem.Quantity.ToString(),
+            Margin = new Thickness(0, 10, 0, 0),
+            MinWidth = 220
+        };
+
+        var dialog = new Window
+        {
+            Title = "Quantidade",
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ResizeMode = ResizeMode.NoResize,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(20),
+                Children =
+                {
+                    new TextBlock { Text = $"{vm.SelectedItem.Description}", FontWeight = FontWeights.SemiBold },
+                    new TextBlock { Text = "Informe a quantidade:", Margin = new Thickness(0, 8, 0, 0) },
+                    quantityTextBox,
+                    new Button { Content = "Confirmar", Width = 110, Margin = new Thickness(0, 12, 0, 0), IsDefault = true, HorizontalAlignment = HorizontalAlignment.Right }
+                }
+            }
+        };
+
+        if (dialog.Content is StackPanel panel && panel.Children[^1] is Button confirm)
+        {
+            confirm.Click += (_, _) =>
+            {
+                if (!vm.UpdateSelectedItemQuantity(quantityTextBox.Text))
+                {
+                    return;
+                }
+
+                dialog.DialogResult = true;
+                dialog.Close();
+            };
+        }
+
+        dialog.ShowDialog();
+        ItemsDataGrid.Items.Refresh();
+        FocusBarcode();
     }
 
     private void ItemsDataGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)

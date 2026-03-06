@@ -24,7 +24,12 @@ public partial class CloseCashWindow : Window
             return;
         }
 
-        await vm.CloseCashRegisterAsync();
+        var success = await vm.CloseCashRegisterAsync();
+        if (!success)
+        {
+            return;
+        }
+
         DialogResult = true;
         Close();
     }

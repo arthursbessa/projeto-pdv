@@ -1,21 +1,48 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using Pdv.Application.Domain;
+using Pdv.Ui.ViewModels;
 
 namespace Pdv.Ui.Views;
 
-public partial class FinalizeSaleWindow : Window
+public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
 {
+    private bool _isBusy;
+
     public FinalizeSaleWindow()
     {
         InitializeComponent();
+        DataContext = this;
     }
 
     public PaymentMethod? SelectedPaymentMethod { get; private set; }
     public bool ShouldPrintCoupon { get; private set; }
-
-    private void Confirm_Click(object sender, RoutedEventArgs e)
+    public Sale? CompletedSale { get; private set; }
+    public bool IsBusy
     {
+        get => _isBusy;
+        set
+        {
+            if (_isBusy == value) return;
+            _isBusy = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private async void Confirm_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        if (Owner?.DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
         SelectedPaymentMethod = CashOption.IsChecked == true
             ? PaymentMethod.Cash
             : CardOption.IsChecked == true
@@ -24,12 +51,31 @@ public partial class FinalizeSaleWindow : Window
 
         ShouldPrintCoupon = PrintCouponOption.IsChecked == true;
 
-        DialogResult = true;
-        Close();
+        IsBusy = true;
+        try
+        {
+            CompletedSale = await vm.FinalizeAsync(SelectedPaymentMethod.Value);
+            if (CompletedSale is null)
+            {
+                return;
+            }
+
+            DialogResult = true;
+            Close();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
+        if (IsBusy)
+        {
+            return;
+        }
+
         DialogResult = false;
         Close();
     }
@@ -46,5 +92,12 @@ public partial class FinalizeSaleWindow : Window
             Cancel_Click(sender, e);
             e.Handled = true;
         }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

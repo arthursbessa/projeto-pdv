@@ -60,6 +60,30 @@ public sealed class SyncService
                     await _cashRegisterApiClient.RegisterWithdrawalAsync(sessionId, operatorId, amount, description, cancellationToken);
                 }
                 break;
+            case "CashRegisterOpened":
+            case "CashRegisterClosed":
+                using (var document = JsonDocument.Parse(outboxEvent.PayloadJson))
+                {
+                    var root = document.RootElement;
+                    var action = root.GetProperty("action").GetString() ?? string.Empty;
+                    var operatorId = root.GetProperty("operator_id").GetString() ?? string.Empty;
+                    var amount = root.GetProperty("amount").GetDecimal();
+                    var datetime = root.GetProperty("datetime").GetDateTimeOffset();
+
+                    if (action == "open")
+                    {
+                        await _cashRegisterApiClient.OpenAsync(operatorId, amount, datetime, cancellationToken);
+                    }
+                    else if (action == "close")
+                    {
+                        var sessionId = root.GetProperty("session_id").GetString() ?? string.Empty;
+                        var notes = root.TryGetProperty("notes", out var notesElement)
+                            ? notesElement.GetString()
+                            : null;
+                        await _cashRegisterApiClient.CloseAsync(sessionId, operatorId, amount, datetime, notes, cancellationToken);
+                    }
+                }
+                break;
             default:
                 throw new InvalidOperationException($"Tipo de evento de integração desconhecido: {outboxEvent.Type}");
         }
