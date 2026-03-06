@@ -7,6 +7,7 @@ namespace Pdv.Application.Services;
 
 public sealed class SyncService
 {
+    private static readonly TimeSpan MissingSessionRetryDelay = TimeSpan.FromSeconds(5);
     private readonly IOutboxRepository _outboxRepository;
     private readonly ISalesApiClient _salesApiClient;
     private readonly ICashRegisterApiClient _cashRegisterApiClient;
@@ -33,13 +34,18 @@ public sealed class SyncService
         var events = await _outboxRepository.GetPendingEventsAsync(now, 50, cancellationToken);
         var sent = 0;
 
-        foreach (var outboxEvent in events)
+        foreach (var outboxEvent in OrderByDispatchPriority(events))
         {
             try
             {
                 await DispatchEventAsync(outboxEvent, cancellationToken);
                 await _outboxRepository.MarkAsSentAsync(outboxEvent.Id, DateTimeOffset.UtcNow, cancellationToken);
                 sent++;
+            }
+            catch (RemoteSessionNotLinkedException ex)
+            {
+                var nextRetry = DateTimeOffset.UtcNow.Add(MissingSessionRetryDelay);
+                await _outboxRepository.MarkForRetryAsync(outboxEvent.Id, outboxEvent.Attempts, nextRetry, ex.Message, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -51,6 +57,25 @@ public sealed class SyncService
         }
 
         return sent;
+    }
+
+    private static IEnumerable<OutboxEvent> OrderByDispatchPriority(IEnumerable<OutboxEvent> events)
+    {
+        return events
+            .OrderBy(GetDispatchPriority)
+            .ThenBy(e => e.CreatedAt);
+    }
+
+    private static int GetDispatchPriority(OutboxEvent outboxEvent)
+    {
+        return outboxEvent.Type switch
+        {
+            "CashRegisterOpened" => 0,
+            "SaleCreated" => 1,
+            "CashWithdrawalCreated" => 1,
+            "CashRegisterClosed" => 2,
+            _ => 3
+        };
     }
 
     private async Task DispatchEventAsync(OutboxEvent outboxEvent, CancellationToken cancellationToken)
@@ -155,7 +180,15 @@ public sealed class SyncService
             return remoteSessionId;
         }
 
-        throw new InvalidOperationException($"Sessão remota ainda não vinculada para a sessão local '{localSessionId}'.");
+        throw new RemoteSessionNotLinkedException(localSessionId);
     }
 
+}
+
+public sealed class RemoteSessionNotLinkedException : InvalidOperationException
+{
+    public RemoteSessionNotLinkedException(string localSessionId)
+        : base($"Sessão remota ainda não vinculada para a sessão local '{localSessionId}'.")
+    {
+    }
 }
