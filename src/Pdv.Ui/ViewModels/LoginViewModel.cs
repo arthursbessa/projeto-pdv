@@ -11,30 +11,41 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private readonly ICashRegisterRepository _cashRegisters;
     private readonly IUserRepository _users;
     private readonly SessionContext _session;
+    private readonly IStoreSettingsRepository _storeSettingsRepository;
     private readonly IErrorFileLogger _errorLogger;
     private string _username = string.Empty;
     private string _password = string.Empty;
     private string _statusMessage = "Informe as credenciais do Lovable.";
     private bool _isBusy;
+    private string _storeName = "Sua loja";
+    private string _storeDocument = "CNPJ não informado";
+    private string _storeAddress = "Endereço não informado";
 
     public LoginViewModel(
         IAuthApiClient authApiClient,
         ICashRegisterRepository cashRegisters,
         IUserRepository users,
         SessionContext session,
+        IStoreSettingsRepository storeSettingsRepository,
         IErrorFileLogger errorLogger)
     {
         _authApiClient = authApiClient;
         _cashRegisters = cashRegisters;
         _users = users;
         _session = session;
+        _storeSettingsRepository = storeSettingsRepository;
         _errorLogger = errorLogger;
+
+        _ = LoadStoreInfoAsync();
     }
 
     public string Username { get => _username; set => SetField(ref _username, value); }
     public string Password { get => _password; set => SetField(ref _password, value); }
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
     public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
+    public string StoreName { get => _storeName; private set => SetField(ref _storeName, value); }
+    public string StoreDocument { get => _storeDocument; private set => SetField(ref _storeDocument, value); }
+    public string StoreAddress { get => _storeAddress; private set => SetField(ref _storeAddress, value); }
 
     public async Task<bool> LoginAsync()
     {
@@ -88,6 +99,26 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private async Task LoadStoreInfoAsync()
+    {
+        try
+        {
+            var store = await _storeSettingsRepository.GetCurrentAsync();
+            if (store is null)
+            {
+                return;
+            }
+
+            StoreName = string.IsNullOrWhiteSpace(store.StoreName) ? "Sua loja" : store.StoreName;
+            StoreDocument = string.IsNullOrWhiteSpace(store.Cnpj) ? "CNPJ não informado" : $"CNPJ: {store.Cnpj}";
+            StoreAddress = string.IsNullOrWhiteSpace(store.Address) ? "Endereço não informado" : store.Address;
+        }
+        catch (Exception ex)
+        {
+            _errorLogger.LogError("Falha ao carregar informações da loja na tela de login", ex);
         }
     }
 
