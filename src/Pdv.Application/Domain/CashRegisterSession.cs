@@ -3,6 +3,7 @@ namespace Pdv.Application.Domain;
 public sealed class CashRegisterSession
 {
     public string Id { get; init; } = Guid.NewGuid().ToString();
+    public string? RemoteSessionId { get; init; }
     public DateTimeOffset OpenedAt { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ClosedAt { get; init; }
     public int OpeningAmountCents { get; init; }

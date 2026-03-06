@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS cash_register_sessions (
     status TEXT NOT NULL DEFAULT 'OPEN',
     business_date TEXT NULL,
     opened_by_user_id TEXT NULL,
-    closed_by_user_id TEXT NULL
+    closed_by_user_id TEXT NULL,
+    remote_session_id TEXT NULL
 );
 
 CREATE TABLE IF NOT EXISTS cash_withdrawals (
@@ -217,6 +218,7 @@ CREATE TABLE IF NOT EXISTS store_settings (
         await EnsureColumnAsync(connection, "cash_register_sessions", "business_date", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_register_sessions", "opened_by_user_id", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_register_sessions", "closed_by_user_id", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "cash_register_sessions", "remote_session_id", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_withdrawals", "reason", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_withdrawals", "created_by_user_id", "TEXT NULL", cancellationToken);
     }

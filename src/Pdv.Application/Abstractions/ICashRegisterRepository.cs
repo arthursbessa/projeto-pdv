@@ -11,4 +11,6 @@ public interface ICashRegisterRepository
     Task RegisterWithdrawalAsync(string sessionId, int amountCents, string reason, string userId, DateTimeOffset now, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SaleSummary>> GetSalesBySessionAsync(string sessionId, CancellationToken cancellationToken = default);
     Task<CashStatusSnapshot> GetCashStatusSnapshotAsync(DateTimeOffset now, CancellationToken cancellationToken = default);
+    Task<string?> GetRemoteSessionIdAsync(string localSessionId, CancellationToken cancellationToken = default);
+    Task SaveRemoteSessionIdAsync(string localSessionId, string remoteSessionId, CancellationToken cancellationToken = default);
 }
