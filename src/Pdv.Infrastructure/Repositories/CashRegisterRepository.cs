@@ -121,13 +121,19 @@ public sealed class CashRegisterRepository : ICashRegisterRepository
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
 
+        var resolvedSessionId = await ResolveExistingSessionIdAsync(connection, sessionId, cancellationToken);
+        if (resolvedSessionId is null)
+        {
+            throw new InvalidOperationException("Não há caixa aberto para registrar sangria.");
+        }
+
         var existingUserId = await ResolveExistingUserIdAsync(connection, userId, cancellationToken);
 
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"INSERT INTO cash_withdrawals (id, cash_register_session_id, amount_cents, reason, created_at, created_by_user_id)
                             VALUES ($id, $sessionId, $amountCents, $reason, $createdAt, $createdByUserId);";
         cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-        cmd.Parameters.AddWithValue("$sessionId", sessionId);
+        cmd.Parameters.AddWithValue("$sessionId", resolvedSessionId);
         cmd.Parameters.AddWithValue("$amountCents", amountCents);
         cmd.Parameters.AddWithValue("$reason", reason);
         cmd.Parameters.AddWithValue("$createdAt", now.ToString("O"));
@@ -286,6 +292,27 @@ ORDER BY created_at DESC;";
 
         var value = await command.ExecuteScalarAsync(cancellationToken);
         return value is string existingUserId ? existingUserId : null;
+    }
+
+    private static async Task<string?> ResolveExistingSessionIdAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(sessionId))
+        {
+            var byIdCommand = connection.CreateCommand();
+            byIdCommand.CommandText = "SELECT id FROM cash_register_sessions WHERE id = $sessionId LIMIT 1;";
+            byIdCommand.Parameters.AddWithValue("$sessionId", sessionId);
+
+            var byIdValue = await byIdCommand.ExecuteScalarAsync(cancellationToken);
+            if (byIdValue is string existingSessionId)
+            {
+                return existingSessionId;
+            }
+        }
+
+        var openSessionCommand = connection.CreateCommand();
+        openSessionCommand.CommandText = "SELECT id FROM cash_register_sessions WHERE status = 'OPEN' ORDER BY opened_at DESC LIMIT 1;";
+        var openSessionValue = await openSessionCommand.ExecuteScalarAsync(cancellationToken);
+        return openSessionValue is string openSessionId ? openSessionId : null;
     }
 
     private static CashRegisterSession ReadSession(Microsoft.Data.Sqlite.SqliteDataReader reader) => new()

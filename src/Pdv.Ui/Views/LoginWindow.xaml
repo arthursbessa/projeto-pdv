@@ -32,8 +32,8 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Border Width="96" Height="96" Background="#2563EB" CornerRadius="48" HorizontalAlignment="Left">
-                        <TextBlock Text="PDV" FontSize="28" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border Width="96" Height="96" Background="#0F172A" CornerRadius="48" HorizontalAlignment="Left" BorderBrush="#2563EB" BorderThickness="2">
+                        <Image Source="{Binding StoreLogoPath}" Stretch="Uniform" Margin="10"/>
                     </Border>
 
                     <StackPanel Grid.Row="2">
