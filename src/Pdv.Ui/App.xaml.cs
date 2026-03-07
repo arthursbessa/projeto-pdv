@@ -35,11 +35,6 @@ public partial class App : System.Windows.Application
         var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
         Directory.CreateDirectory(dbDirectory);
 
-        if (options.ResetDatabaseOnStartup)
-        {
-            ResetLocalDatabaseFiles(fullDbPath);
-        }
-
         options.DatabaseFullPath = fullDbPath;
 
         Services = new ServiceCollection()
@@ -78,26 +73,6 @@ public partial class App : System.Windows.Application
         MainWindow = menu;
         ShutdownMode = ShutdownMode.OnMainWindowClose;
         menu.Show();
-    }
-
-    private static void ResetLocalDatabaseFiles(string fullDbPath)
-    {
-        if (File.Exists(fullDbPath))
-        {
-            File.Delete(fullDbPath);
-        }
-
-        var walPath = $"{fullDbPath}-wal";
-        if (File.Exists(walPath))
-        {
-            File.Delete(walPath);
-        }
-
-        var shmPath = $"{fullDbPath}-shm";
-        if (File.Exists(shmPath))
-        {
-            File.Delete(shmPath);
-        }
     }
 
     private void RegisterGlobalExceptionLogging(IErrorFileLogger errorLogger)
