@@ -11,11 +11,13 @@ public sealed class HttpUsersApiClient : IUsersApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly PdvOptions _options;
+    private readonly IErrorLogger _errorLogger;
 
-    public HttpUsersApiClient(HttpClient httpClient, PdvOptions options)
+    public HttpUsersApiClient(HttpClient httpClient, PdvOptions options, IErrorLogger errorLogger)
     {
         _httpClient = httpClient;
         _options = options;
+        _errorLogger = errorLogger;
     }
 
     public async Task<IReadOnlyCollection<UserAccount>> GetUsersAsync(CancellationToken cancellationToken = default)
@@ -27,12 +29,16 @@ public sealed class HttpUsersApiClient : IUsersApiClient
 
         var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-users";
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        request.Headers.Add("x-pdv-token", _options.TerminalToken);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        PdvApiRequestHeaders.Apply(request, _options);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _errorLogger.LogError(
+                "Falha ao consultar usuarios do PDV",
+                new HttpRequestException(
+                    $"Endpoint '{endpoint}' retornou {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}"));
             return [];
         }
 
@@ -41,6 +47,9 @@ public sealed class HttpUsersApiClient : IUsersApiClient
 
         if (!doc.RootElement.TryGetProperty("users", out var usersElement) || usersElement.ValueKind != JsonValueKind.Array)
         {
+            _errorLogger.LogError(
+                "Resposta invalida na consulta de usuarios do PDV",
+                new InvalidOperationException($"Endpoint '{endpoint}' nao retornou uma lista em 'users'."));
             return [];
         }
 

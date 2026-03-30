@@ -11,11 +11,13 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly PdvOptions _options;
+    private readonly IErrorLogger _errorLogger;
 
-    public HttpCatalogApiClient(HttpClient httpClient, PdvOptions options)
+    public HttpCatalogApiClient(HttpClient httpClient, PdvOptions options, IErrorLogger errorLogger)
     {
         _httpClient = httpClient;
         _options = options;
+        _errorLogger = errorLogger;
     }
 
     public async Task<IReadOnlyCollection<ProductCacheItem>> GetCatalogAsync(CancellationToken cancellationToken = default)
@@ -27,11 +29,17 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
 
         var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-catalog";
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Add("x-pdv-token", _options.TerminalToken);
+        PdvApiRequestHeaders.Apply(request, _options);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var exception = new HttpRequestException(
+                $"Falha ao carregar catalogo em '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}");
+            _errorLogger.LogError("Falha na consulta do catalogo PDV", exception);
+            throw exception;
+        }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
@@ -48,6 +56,9 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
 
         if (catalogRoot.ValueKind != JsonValueKind.Array)
         {
+            _errorLogger.LogError(
+                "Resposta invalida no catalogo PDV",
+                new InvalidOperationException($"Endpoint '{endpoint}' nao retornou uma lista de produtos."));
             return list;
         }
 
@@ -61,7 +72,7 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
                 continue;
             }
 
-            var priceDecimal = GetDecimal(item, "price", "sale_price", "promo_price");
+            var priceDecimal = GetCurrentPrice(item);
             var active = item.TryGetProperty("is_active", out var activeEl) ? activeEl.GetBoolean() : true;
             var now = DateTimeOffset.UtcNow;
 
@@ -78,6 +89,22 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
         }
 
         return list;
+    }
+
+    private static decimal GetCurrentPrice(JsonElement item)
+    {
+        var price = GetDecimal(item, "price", "sale_price", "salePrice");
+        var promoPrice = GetDecimal(item, "promo_price", "promoPrice");
+        if (promoPrice <= 0)
+        {
+            return price;
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var promoStart = GetDate(item, "promo_start", "promoStart");
+        var promoEnd = GetDate(item, "promo_end", "promoEnd");
+        var isInPromoWindow = (!promoStart.HasValue || promoStart.Value <= today) && (!promoEnd.HasValue || promoEnd.Value >= today);
+        return isInPromoWindow ? promoPrice : price;
     }
 
     private static decimal GetDecimal(JsonElement item, params string[] names)
@@ -101,5 +128,23 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
         }
 
         return 0m;
+    }
+
+    private static DateOnly? GetDate(JsonElement item, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!item.TryGetProperty(name, out var element) || element.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            if (DateOnly.TryParse(element.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            {
+                return date;
+            }
+        }
+
+        return null;
     }
 }

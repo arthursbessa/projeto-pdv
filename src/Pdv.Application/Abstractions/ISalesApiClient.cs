@@ -1,6 +1,8 @@
+using Pdv.Application.Domain;
+
 namespace Pdv.Application.Abstractions;
 
 public interface ISalesApiClient
 {
-    Task SendSaleAsync(string payloadJson, CancellationToken cancellationToken = default);
+    Task<SaleSyncResult> SendSaleAsync(string payloadJson, CancellationToken cancellationToken = default);
 }

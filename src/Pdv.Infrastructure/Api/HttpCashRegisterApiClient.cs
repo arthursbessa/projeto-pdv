@@ -11,11 +11,13 @@ public sealed class HttpCashRegisterApiClient : ICashRegisterApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly PdvOptions _options;
+    private readonly IErrorLogger _errorLogger;
 
-    public HttpCashRegisterApiClient(HttpClient httpClient, PdvOptions options)
+    public HttpCashRegisterApiClient(HttpClient httpClient, PdvOptions options, IErrorLogger errorLogger)
     {
         _httpClient = httpClient;
         _options = options;
+        _errorLogger = errorLogger;
     }
 
     public async Task<string> OpenAsync(string operatorId, decimal amount, DateTimeOffset datetime, CancellationToken cancellationToken = default)
@@ -75,11 +77,17 @@ public sealed class HttpCashRegisterApiClient : ICashRegisterApiClient
             Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
 
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Add("x-pdv-token", _options.TerminalToken);
+        PdvApiRequestHeaders.Apply(request, _options);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            var exception = new HttpRequestException(
+                $"Falha ao registrar sangria em '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {body}");
+            _errorLogger.LogError("Falha na integracao de sangria do PDV", exception);
+            throw exception;
+        }
     }
 
     private async Task<string> SendAsync(string payload, CancellationToken cancellationToken)
@@ -95,12 +103,18 @@ public sealed class HttpCashRegisterApiClient : ICashRegisterApiClient
             Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
 
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Add("x-pdv-token", _options.TerminalToken);
+        PdvApiRequestHeaders.Apply(request, _options);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var exception = new HttpRequestException(
+                $"Falha ao integrar caixa em '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {body}");
+            _errorLogger.LogError("Falha na integracao de caixa do PDV", exception);
+            throw exception;
+        }
+
         return body;
     }
 }

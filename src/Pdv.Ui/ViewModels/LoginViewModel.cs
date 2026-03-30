@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
+using Pdv.Application.Domain;
+using Pdv.Infrastructure.Repositories;
 using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
@@ -16,11 +18,11 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private readonly IErrorFileLogger _errorLogger;
     private string _username = string.Empty;
     private string _password = string.Empty;
-    private string _statusMessage = "Informe as credenciais do Lovable.";
+    private string _statusMessage = "Informe as credenciais do operador.";
     private bool _isBusy;
     private string _storeName = "Sua loja";
-    private string _storeDocument = "CNPJ não informado";
-    private string _storeAddress = "Endereço não informado";
+    private string _storeDocument = "CNPJ nao informado";
+    private string _storeAddress = "Endereco nao informado";
     private string _storeLogoPath = string.Empty;
 
     public LoginViewModel(
@@ -66,10 +68,11 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             var user = await _authApiClient.AuthenticateAsync(Username, Password);
             if (user is null)
             {
-                StatusMessage = "Usuário ou senha inválidos.";
+                StatusMessage = "Usuario ou senha invalidos.";
                 return false;
             }
 
+            await CacheAuthenticatedUserAsync(user, Password);
             _session.CurrentUser = user;
 
             var openSession = await _cashRegisters.GetOpenSessionAsync();
@@ -83,7 +86,6 @@ public sealed class LoginViewModel : INotifyPropertyChanged
 
             _session.OpenCashRegister = openSession;
             StatusMessage = $"Bem-vindo, {user.FullName}.";
-
             return true;
         }
         catch (Exception ex)
@@ -92,7 +94,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             var localUser = await _users.AuthenticateAsync(Username, Password);
             if (localUser is null)
             {
-                StatusMessage = $"Falha no login remoto e local: {ex.Message}";
+                StatusMessage = "Nao foi possivel entrar agora. Verifique usuario, senha e conexao.";
                 return false;
             }
 
@@ -125,11 +127,11 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            _errorLogger.LogError("Falha ao carregar informações da loja na tela de login", ex);
+            _errorLogger.LogError("Falha ao carregar informacoes da loja na tela de login", ex);
         }
     }
 
-    private void ApplyStoreInfo(Pdv.Application.Domain.StoreSettings? store)
+    private void ApplyStoreInfo(StoreSettings? store)
     {
         if (store is null)
         {
@@ -137,16 +139,45 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         }
 
         StoreName = string.IsNullOrWhiteSpace(store.StoreName) ? "Sua loja" : store.StoreName;
-        StoreDocument = string.IsNullOrWhiteSpace(store.Cnpj) ? "CNPJ não informado" : $"CNPJ: {store.Cnpj}";
-        StoreAddress = string.IsNullOrWhiteSpace(store.Address) ? "Endereço não informado" : store.Address;
+        StoreDocument = string.IsNullOrWhiteSpace(store.Cnpj) ? "CNPJ nao informado" : $"CNPJ: {store.Cnpj}";
+        StoreAddress = string.IsNullOrWhiteSpace(store.Address) ? "Endereco nao informado" : store.Address;
         StoreLogoPath = store.LogoLocalPath;
+    }
+
+    private async Task CacheAuthenticatedUserAsync(UserAccount remoteUser, string password)
+    {
+        var existing = await _users.FindByIdAsync(remoteUser.Id);
+        var cachedUser = new UserAccount
+        {
+            Id = remoteUser.Id,
+            Username = remoteUser.Username,
+            FullName = remoteUser.FullName,
+            PasswordHash = UserRepository.HashPassword(password),
+            Active = remoteUser.Active,
+            CreatedAt = existing?.CreatedAt ?? DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        if (existing is null)
+        {
+            await _users.AddAsync(cachedUser);
+        }
+        else
+        {
+            await _users.UpdateAsync(cachedUser);
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
-        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return false;
+        }
+
         field = value;
         OnPropertyChanged(propertyName);
         return true;

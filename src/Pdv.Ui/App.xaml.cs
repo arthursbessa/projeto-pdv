@@ -22,14 +22,25 @@ public partial class App : System.Windows.Application
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
 
         var options = configuration.GetSection("Pdv").Get<PdvOptions>() ?? new PdvOptions();
-        var terminalTokenFromEnv = Environment.GetEnvironmentVariable("TOKEN_PDV");
+        var terminalTokenFromEnv = ResolveEnvironmentValue("TOKEN_PDV", "Pdv__TerminalToken");
         if (!string.IsNullOrWhiteSpace(terminalTokenFromEnv))
         {
             options.TerminalToken = terminalTokenFromEnv.Trim();
+        }
+        var supabaseAnonKeyFromEnv = ResolveEnvironmentValue(
+            "SUPABASE_ANON_KEY",
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+            "SUPABASE_KEY",
+            "SUPABASE_ANON",
+            "Pdv__SupabaseAnonKey");
+        if (!string.IsNullOrWhiteSpace(supabaseAnonKeyFromEnv))
+        {
+            options.SupabaseAnonKey = supabaseAnonKeyFromEnv.Trim();
         }
         var fullDbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, options.DatabaseRelativePath));
         var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
@@ -45,6 +56,10 @@ public partial class App : System.Windows.Application
             .AddTransient<MainViewModel>()
             .AddTransient<LoginViewModel>()
             .AddTransient<MenuViewModel>()
+            .AddTransient<ProductLookupViewModel>()
+            .AddTransient<CustomerLookupViewModel>()
+            .AddTransient<CreateCustomerViewModel>()
+            .AddTransient<SalesHistoryViewModel>()
             .BuildServiceProvider();
 
         var errorLogger = Services.GetRequiredService<IErrorFileLogger>();
@@ -97,5 +112,19 @@ public partial class App : System.Windows.Application
             errorLogger.LogError("Exceção de Task não observada", args.Exception);
             args.SetObserved();
         };
+    }
+
+    private static string? ResolveEnvironmentValue(params string[] variableNames)
+    {
+        foreach (var variableName in variableNames)
+        {
+            var value = Environment.GetEnvironmentVariable(variableName);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 }

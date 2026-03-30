@@ -11,12 +11,14 @@ public sealed class HttpAuthApiClient : IAuthApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly PdvOptions _options;
-    private static readonly string[] AuthFunctionNames = ["pdv-auth", "pdv-login", "pdv-terminal-auth"];
+    private readonly IErrorLogger _errorLogger;
+    private static readonly string[] AuthFunctionNames = ["pdv-auth"];
 
-    public HttpAuthApiClient(HttpClient httpClient, PdvOptions options)
+    public HttpAuthApiClient(HttpClient httpClient, PdvOptions options, IErrorLogger errorLogger)
     {
         _httpClient = httpClient;
         _options = options;
+        _errorLogger = errorLogger;
     }
 
     public async Task<UserAccount?> AuthenticateAsync(string username, string password, CancellationToken cancellationToken = default)
@@ -37,8 +39,7 @@ public sealed class HttpAuthApiClient : IAuthApiClient
                 Content = new StringContent(payload, Encoding.UTF8, "application/json")
             };
 
-            request.Headers.Add("x-pdv-token", _options.TerminalToken);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            PdvApiRequestHeaders.Apply(request, _options);
 
             response = await _httpClient.SendAsync(request, cancellationToken);
             if (response.IsSuccessStatusCode)
@@ -48,6 +49,11 @@ public sealed class HttpAuthApiClient : IAuthApiClient
 
             if (response.StatusCode != System.Net.HttpStatusCode.NotFound)
             {
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _errorLogger.LogError(
+                    "Falha na autenticacao remota do PDV",
+                    new HttpRequestException(
+                        $"Endpoint '{request.RequestUri}' retornou {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}"));
                 response.Dispose();
                 return null;
             }
@@ -58,6 +64,9 @@ public sealed class HttpAuthApiClient : IAuthApiClient
 
         if (response is null)
         {
+            _errorLogger.LogError(
+                "Nenhum endpoint de autenticacao do PDV respondeu com sucesso",
+                new InvalidOperationException($"Endpoints tentados: {string.Join(", ", AuthFunctionNames)}."));
             return null;
         }
 
@@ -70,21 +79,30 @@ public sealed class HttpAuthApiClient : IAuthApiClient
                 || successElement.ValueKind != JsonValueKind.True
                 || !document.RootElement.TryGetProperty("user", out var userElement))
             {
+                _errorLogger.LogError(
+                    "Resposta invalida na autenticacao remota do PDV",
+                    new InvalidOperationException($"Endpoint '{response.RequestMessage?.RequestUri}' retornou payload sem os campos esperados."));
                 return null;
             }
 
             var userId = userElement.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
-            var accountUsername = userElement.TryGetProperty("username", out var usernameElement)
-                ? usernameElement.GetString() ?? normalizedUsername
-                : userElement.TryGetProperty("email", out var emailElement)
-                    ? emailElement.GetString() ?? normalizedUsername
-                    : normalizedUsername;
-            string fullName = accountUsername;
+            var accountUsername = normalizedUsername;
+            string fullName = normalizedUsername;
 
             if (userElement.TryGetProperty("display_name", out var displayNameElement)
                 && !string.IsNullOrWhiteSpace(displayNameElement.GetString()))
             {
                 fullName = displayNameElement.GetString()!;
+            }
+            else if (userElement.TryGetProperty("username", out var usernameElement)
+                && !string.IsNullOrWhiteSpace(usernameElement.GetString()))
+            {
+                fullName = usernameElement.GetString()!;
+            }
+            else if (userElement.TryGetProperty("email", out var emailElement)
+                && !string.IsNullOrWhiteSpace(emailElement.GetString()))
+            {
+                fullName = emailElement.GetString()!;
             }
 
             return new UserAccount

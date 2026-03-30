@@ -26,6 +26,8 @@ public sealed class InfrastructureSchemaTests
         Assert.True(await TableExistsAsync(connection, "cash_register_sessions"));
         Assert.True(await TableExistsAsync(connection, "customers"));
         Assert.True(await TableExistsAsync(connection, "store_settings"));
+        Assert.True(await TableExistsAsync(connection, "sale_refunds"));
+        Assert.True(await TableExistsAsync(connection, "sale_refund_items"));
 
         var paymentCount = await ScalarIntAsync(connection, "SELECT COUNT(1) FROM payment_methods;");
         Assert.True(paymentCount >= 3);
@@ -57,6 +59,7 @@ public sealed class InfrastructureSchemaTests
         var sale = new Sale
         {
             PaymentMethod = PaymentMethod.Pix,
+            ChangeAmountCents = 0,
             Items =
             [
                 new SaleItem
@@ -79,6 +82,197 @@ public sealed class InfrastructureSchemaTests
 
         var paymentMethodId = await ScalarIntAsync(connection, "SELECT payment_method_id FROM sales WHERE id = $saleId;", ("$saleId", sale.SaleId.ToString()));
         Assert.Equal((int)PaymentMethod.Pix, paymentMethodId);
+    }
+
+    [Fact]
+    public async Task SaveSaleWithOutboxAsync_ShouldPersistCashReceivedAndReturnSaleForReprint()
+    {
+        var dbPath = CreateTempDbPath();
+        var factory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(factory);
+        var salesRepository = new SalesRepository(factory);
+        var productRepository = new ProductCacheRepository(factory);
+
+        await initializer.InitializeAsync();
+
+        await productRepository.AddAsync(new ProductCacheItem
+        {
+            ProductId = Guid.NewGuid().ToString(),
+            Barcode = "789000000002",
+            Description = "Produto Dinheiro",
+            PriceCents = 1200,
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+
+        var product = (await productRepository.FindByBarcodeAsync("789000000002"))!;
+        var sale = new Sale
+        {
+            PaymentMethod = PaymentMethod.Cash,
+            ReceivedAmountCents = 2000,
+            ChangeAmountCents = 800,
+            Items =
+            [
+                new SaleItem
+                {
+                    ProductId = product.ProductId,
+                    Barcode = product.Barcode,
+                    Description = product.Description,
+                    PriceCents = product.PriceCents
+                }
+            ]
+        };
+
+        await salesRepository.SaveSaleWithOutboxAsync(sale, "{}");
+
+        var history = await salesRepository.GetHistoryAsync(DateTime.Today);
+        var loadedSale = await salesRepository.FindByIdAsync(sale.SaleId);
+
+        Assert.Single(history);
+        Assert.Equal(2000, history[0].ReceivedAmountCents);
+        Assert.Equal(800, history[0].ChangeAmountCents);
+        Assert.NotNull(loadedSale);
+        Assert.Equal(2000, loadedSale!.ReceivedAmountCents);
+        Assert.Equal(800, loadedSale.ChangeAmountCents);
+        Assert.Single(loadedSale.Items);
+    }
+
+    [Fact]
+    public async Task SaveRefundWithOutboxAsync_ShouldPersistRefundAndUpdateSaleStatus()
+    {
+        var dbPath = CreateTempDbPath();
+        var factory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(factory);
+        var salesRepository = new SalesRepository(factory);
+        var productRepository = new ProductCacheRepository(factory);
+
+        await initializer.InitializeAsync();
+
+        await productRepository.AddAsync(new ProductCacheItem
+        {
+            ProductId = Guid.NewGuid().ToString(),
+            Barcode = "789000000003",
+            Description = "Produto para Devolucao",
+            PriceCents = 900,
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+
+        var product = (await productRepository.FindByBarcodeAsync("789000000003"))!;
+        var sale = new Sale
+        {
+            PaymentMethod = PaymentMethod.Card,
+            RemoteSaleId = "remote-sale-1",
+            Items =
+            [
+                new SaleItem
+                {
+                    ProductId = product.ProductId,
+                    Barcode = product.Barcode,
+                    Description = product.Description,
+                    PriceCents = product.PriceCents
+                }
+            ]
+        };
+
+        await salesRepository.SaveSaleWithOutboxAsync(sale, "{}");
+        var loadedSale = await salesRepository.FindByIdAsync(sale.SaleId);
+
+        Assert.NotNull(loadedSale);
+
+        await salesRepository.SaveRefundWithOutboxAsync(
+            sale.SaleId,
+            "Produto com defeito",
+            [
+                new SaleRefundItem
+                {
+                    SaleItemId = loadedSale!.Items.First().SaleItemId!,
+                    ProductId = loadedSale.Items.First().ProductId,
+                    Description = loadedSale.Items.First().Description,
+                    Quantity = 1
+                }
+            ],
+            "{}",
+            null);
+
+        var refundedSale = await salesRepository.FindByIdAsync(sale.SaleId);
+
+        await using var connection = factory.Create();
+        await connection.OpenAsync();
+        var refundCount = await ScalarIntAsync(connection, "SELECT COUNT(1) FROM sale_refunds WHERE sale_id = $saleId;", ("$saleId", sale.SaleId.ToString()));
+        var refundOutboxCount = await ScalarIntAsync(connection, "SELECT COUNT(1) FROM outbox_events WHERE type = 'SaleRefundCreated' AND status = 'Pending';");
+
+        Assert.NotNull(refundedSale);
+        Assert.Equal("REFUNDED", refundedSale!.Status);
+        Assert.Equal(1, refundedSale.Items.First().RefundedQuantity);
+        Assert.Equal(1, refundCount);
+        Assert.Equal(1, refundOutboxCount);
+    }
+
+    [Fact]
+    public async Task SaveRefundAsync_ShouldPersistRefundWithoutCreatingOutboxEvent()
+    {
+        var dbPath = CreateTempDbPath();
+        var factory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(factory);
+        var salesRepository = new SalesRepository(factory);
+        var productRepository = new ProductCacheRepository(factory);
+
+        await initializer.InitializeAsync();
+
+        await productRepository.AddAsync(new ProductCacheItem
+        {
+            ProductId = Guid.NewGuid().ToString(),
+            Barcode = "789000000004",
+            Description = "Produto para Devolucao Direta",
+            PriceCents = 1500,
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+
+        var product = (await productRepository.FindByBarcodeAsync("789000000004"))!;
+        var sale = new Sale
+        {
+            PaymentMethod = PaymentMethod.Cash,
+            Items =
+            [
+                new SaleItem
+                {
+                    ProductId = product.ProductId,
+                    Barcode = product.Barcode,
+                    Description = product.Description,
+                    PriceCents = product.PriceCents
+                }
+            ]
+        };
+
+        await salesRepository.SaveSaleWithOutboxAsync(sale, "{}");
+        var loadedSale = await salesRepository.FindByIdAsync(sale.SaleId);
+
+        await salesRepository.SaveRefundAsync(
+            sale.SaleId,
+            "Cliente desistiu",
+            [
+                new SaleRefundItem
+                {
+                    SaleItemId = loadedSale!.Items.First().SaleItemId!,
+                    ProductId = loadedSale.Items.First().ProductId,
+                    Description = loadedSale.Items.First().Description,
+                    Quantity = 1
+                }
+            ],
+            null);
+
+        await using var connection = factory.Create();
+        await connection.OpenAsync();
+        var refundCount = await ScalarIntAsync(connection, "SELECT COUNT(1) FROM sale_refunds WHERE sale_id = $saleId;", ("$saleId", sale.SaleId.ToString()));
+        var refundOutboxCount = await ScalarIntAsync(connection, "SELECT COUNT(1) FROM outbox_events WHERE type = 'SaleRefundCreated';");
+
+        Assert.Equal(1, refundCount);
+        Assert.Equal(0, refundOutboxCount);
     }
 
 

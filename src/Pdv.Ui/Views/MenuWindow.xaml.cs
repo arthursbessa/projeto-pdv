@@ -38,7 +38,7 @@ public partial class MenuWindow : Window
         var session = App.Services.GetRequiredService<SessionContext>();
         if (session.OpenCashRegister is null)
         {
-            MessageBox.Show("Não é possível abrir o PDV com o caixa fechado.");
+            MessageBox.Show("Nao e possivel abrir o PDV com o caixa fechado.");
             return;
         }
 
@@ -49,5 +49,14 @@ public partial class MenuWindow : Window
     private void OpenIntegrations_Click(object sender, RoutedEventArgs e)
     {
         new IntegrationsWindow { Owner = this, DataContext = DataContext }.ShowDialog();
+    }
+
+    private void OpenSalesHistory_Click(object sender, RoutedEventArgs e)
+    {
+        new SalesHistoryWindow
+        {
+            Owner = this,
+            DataContext = App.Services.GetRequiredService<SalesHistoryViewModel>()
+        }.ShowDialog();
     }
 }

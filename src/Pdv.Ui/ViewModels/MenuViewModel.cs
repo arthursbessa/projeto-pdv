@@ -17,7 +17,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private readonly IOutboxRepository _outboxRepository;
     private readonly SyncService _syncService;
     private readonly IErrorFileLogger _errorLogger;
-    private string _statusMessage = "Gerencie seu caixa e módulos.";
+    private string _statusMessage = "Gerencie seu caixa e modulos.";
     private bool _isBusy;
     private string _storeName = "Minha Loja";
     private string _storeLogoPath = string.Empty;
@@ -86,7 +86,10 @@ public sealed class MenuViewModel : INotifyPropertyChanged
 
     public async Task IntegratePendingSalesAsync()
     {
-        if (IsBusy) return;
+        if (IsBusy)
+        {
+            return;
+        }
 
         IsBusy = true;
         try
@@ -101,12 +104,12 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             }
 
             await RefreshIntegrationStatusesAsync();
-            StatusMessage = $"Integração concluída. Enviadas: {result.SentSales}. Pendentes: {result.PendingSales}.";
+            StatusMessage = $"Integracao concluida. Enviadas: {result.SentSales}. Pendentes: {result.PendingSales}.";
         }
         catch (Exception ex)
         {
-            _errorLogger.LogError("Falha na integração manual de dados", ex);
-            StatusMessage = $"Falha ao integrar dados: {ex.Message}";
+            _errorLogger.LogError("Falha na integracao manual de dados", ex);
+            StatusMessage = "Nao foi possivel integrar os dados agora. Tente novamente.";
         }
         finally
         {
@@ -118,13 +121,13 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     {
         if (_session.CurrentUser is null)
         {
-            StatusMessage = "Sessão de usuário inválida.";
+            StatusMessage = "Sessao de usuario invalida.";
             return false;
         }
 
         if (!MoneyFormatter.TryParseToCents(openAmount, out var amount))
         {
-            StatusMessage = "Valor de abertura inválido.";
+            StatusMessage = "Valor de abertura invalido.";
             return false;
         }
 
@@ -137,13 +140,13 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CurrentCashBalance));
             await RefreshIntegrationStatusesAsync();
             TriggerBackgroundIntegration();
-            StatusMessage = "Caixa aberto com sucesso. Integração assíncrona iniciada.";
+            StatusMessage = "Caixa aberto com sucesso. Integracao assincrona iniciada.";
             return true;
         }
         catch (Exception ex)
         {
             _errorLogger.LogError("Falha ao abrir caixa", ex);
-            StatusMessage = ex.Message;
+            StatusMessage = "Nao foi possivel abrir o caixa. Confira os dados e tente novamente.";
             return false;
         }
     }
@@ -152,7 +155,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     {
         if (_session.CurrentUser is null || _session.OpenCashRegister is null)
         {
-            StatusMessage = "Não há caixa aberto para encerramento.";
+            StatusMessage = "Nao ha caixa aberto para encerramento.";
             return false;
         }
 
@@ -167,7 +170,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             CurrentCashBalanceCents = 0;
             await RefreshIntegrationStatusesAsync();
             TriggerBackgroundIntegration();
-            StatusMessage = "Caixa encerrado com sucesso. Integração assíncrona iniciada.";
+            StatusMessage = "Caixa encerrado com sucesso. Integracao assincrona iniciada.";
             OnPropertyChanged(nameof(CashStatus));
             OnPropertyChanged(nameof(LastClosedCashBalance));
             OnPropertyChanged(nameof(CurrentCashBalance));
@@ -176,7 +179,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             _errorLogger.LogError("Falha ao encerrar caixa", ex);
-            StatusMessage = ex.Message;
+            StatusMessage = "Nao foi possivel encerrar o caixa agora. Tente novamente.";
             return false;
         }
     }
@@ -185,13 +188,13 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     {
         if (_session.CurrentUser is null || _session.OpenCashRegister is null)
         {
-            StatusMessage = "Não há caixa aberto para sangria.";
+            StatusMessage = "Nao ha caixa aberto para sangria.";
             return false;
         }
 
         if (!MoneyFormatter.TryParseToCents(amount, out var amountCents) || amountCents <= 0)
         {
-            StatusMessage = "Valor de sangria inválido.";
+            StatusMessage = "Valor de sangria invalido.";
             return false;
         }
 
@@ -202,14 +205,14 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             await RefreshCashStatusAsync();
             await RefreshIntegrationStatusesAsync();
             TriggerBackgroundIntegration();
-            StatusMessage = "Sangria registrada com sucesso. Integração assíncrona iniciada.";
+            StatusMessage = "Sangria registrada com sucesso. Integracao assincrona iniciada.";
             OnPropertyChanged(nameof(CurrentCashBalance));
             return true;
         }
         catch (Exception ex)
         {
             _errorLogger.LogError("Falha ao registrar sangria", ex);
-            StatusMessage = $"Falha ao registrar sangria: {ex.Message}";
+            StatusMessage = "Nao foi possivel registrar a sangria agora. Tente novamente.";
             return false;
         }
     }
@@ -242,16 +245,23 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             }
             catch (Exception ex)
             {
-                _errorLogger.LogError("Falha na integração assíncrona", ex);
+                _errorLogger.LogError("Falha na integracao assincrona", ex);
             }
         });
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
-        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return false;
+        }
+
         field = value;
         OnPropertyChanged(propertyName);
         return true;

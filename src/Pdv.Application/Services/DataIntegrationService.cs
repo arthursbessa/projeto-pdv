@@ -6,8 +6,6 @@ public sealed class DataIntegrationService
 {
     private readonly SyncService _syncService;
     private readonly IOutboxRepository _outboxRepository;
-    private readonly IUsersApiClient _usersApiClient;
-    private readonly IUserRepository _userRepository;
     private readonly IStoreSettingsApiClient _storeSettingsApiClient;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
     private readonly ICatalogApiClient _catalogApiClient;
@@ -16,8 +14,6 @@ public sealed class DataIntegrationService
     public DataIntegrationService(
         SyncService syncService,
         IOutboxRepository outboxRepository,
-        IUsersApiClient usersApiClient,
-        IUserRepository userRepository,
         IStoreSettingsApiClient storeSettingsApiClient,
         IStoreSettingsRepository storeSettingsRepository,
         ICatalogApiClient catalogApiClient,
@@ -25,8 +21,6 @@ public sealed class DataIntegrationService
     {
         _syncService = syncService;
         _outboxRepository = outboxRepository;
-        _usersApiClient = usersApiClient;
-        _userRepository = userRepository;
         _storeSettingsApiClient = storeSettingsApiClient;
         _storeSettingsRepository = storeSettingsRepository;
         _catalogApiClient = catalogApiClient;
@@ -37,9 +31,6 @@ public sealed class DataIntegrationService
     {
         var sent = await _syncService.RunOnceAsync(cancellationToken);
         var pending = await _outboxRepository.GetPendingCountAsync(cancellationToken);
-
-        var remoteUsers = await _usersApiClient.GetUsersAsync(cancellationToken);
-        await _userRepository.UpsertSyncedUsersAsync(remoteUsers, cancellationToken);
 
         var settings = await _storeSettingsApiClient.GetSettingsAsync(cancellationToken);
         var syncedSettings = false;
@@ -63,6 +54,6 @@ public sealed class DataIntegrationService
             }
         }
 
-        return (sent, pending, remoteUsers.Count, syncedSettings, remoteProducts.Count);
+        return (sent, pending, 0, syncedSettings, remoteProducts.Count);
     }
 }

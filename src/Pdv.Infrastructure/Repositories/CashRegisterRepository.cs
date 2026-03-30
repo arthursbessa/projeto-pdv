@@ -270,8 +270,13 @@ ORDER BY created_at DESC;";
     private static async Task<int> GetTotalSalesAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
     {
         var sales = connection.CreateCommand();
-        sales.CommandText = "SELECT COALESCE(SUM(total_cents), 0) FROM sales WHERE cash_register_session_id = $sessionId;";
+        sales.CommandText = @"
+SELECT COALESCE(SUM(total_cents), 0)
+FROM sales
+WHERE cash_register_session_id = $sessionId
+  AND (payment_method_id = $cashMethodId OR UPPER(payment_method) = 'CASH');";
         sales.Parameters.AddWithValue("$sessionId", sessionId);
+        sales.Parameters.AddWithValue("$cashMethodId", (int)PaymentMethod.Cash);
         var salesValue = await sales.ExecuteScalarAsync(cancellationToken);
         return salesValue is null || salesValue is DBNull ? 0 : Convert.ToInt32(salesValue);
     }

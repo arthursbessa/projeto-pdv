@@ -11,6 +11,7 @@ public sealed class SyncServiceTests
     public async Task RunOnceAsync_ShouldPrioritizeCashRegisterOpenedBeforeDependentEvents()
     {
         var localSessionId = "local-1";
+        var localSaleId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
 
         var openEvent = new OutboxEvent
@@ -36,14 +37,9 @@ public sealed class SyncServiceTests
             Type = "SaleCreated",
             PayloadJson = $$"""
             {
-              "sale_id": "{{Guid.NewGuid()}}",
-              "created_at": "{{now:O}}",
+              "local_sale_id": "{{localSaleId}}",
               "session_id": "{{localSessionId}}",
-              "payment_method": "Cash",
-              "payment_method_code": "cash",
-              "payment_method_id": 1,
-              "total_cents": 1000,
-              "operator_id": "op-1",
+              "payment_method": "cash",
               "items": []
             }
             """,
@@ -53,10 +49,12 @@ public sealed class SyncServiceTests
 
         var outbox = new FakeOutboxRepository([saleEvent, openEvent]);
         var salesApi = new FakeSalesApiClient();
+        var refundsApi = new FakeRefundsApiClient();
+        var salesRepository = new FakeSalesRepository();
         var cashRegisterApi = new FakeCashRegisterApiClient();
         var cashRegisterRepository = new FakeCashRegisterRepository();
         var logger = new FakeErrorLogger();
-        var sut = new SyncService(outbox, salesApi, cashRegisterApi, cashRegisterRepository, logger);
+        var sut = new SyncService(outbox, salesApi, refundsApi, salesRepository, cashRegisterApi, cashRegisterRepository, logger);
 
         var sent = await sut.RunOnceAsync();
 
@@ -65,6 +63,9 @@ public sealed class SyncServiceTests
         Assert.Equal(saleEvent.Id, outbox.MarkedAsSent[1]);
         Assert.Single(salesApi.Payloads);
         Assert.Contains("remote-1", salesApi.Payloads[0]);
+        Assert.Single(salesRepository.SavedReferences);
+        Assert.Equal(localSaleId, salesRepository.SavedReferences[0].LocalSaleId);
+        Assert.Equal("remote-sale-1", salesRepository.SavedReferences[0].RemoteSaleId);
         Assert.Empty(outbox.RetryCalls);
         Assert.Empty(logger.LoggedErrors);
     }
@@ -80,14 +81,9 @@ public sealed class SyncServiceTests
             Type = "SaleCreated",
             PayloadJson = $$"""
             {
-              "sale_id": "{{Guid.NewGuid()}}",
-              "created_at": "{{now:O}}",
+              "local_sale_id": "{{Guid.NewGuid()}}",
               "session_id": "{{localSessionId}}",
-              "payment_method": "Cash",
-              "payment_method_code": "cash",
-              "payment_method_id": 1,
-              "total_cents": 1000,
-              "operator_id": "op-1",
+              "payment_method": "cash",
               "items": []
             }
             """,
@@ -97,10 +93,12 @@ public sealed class SyncServiceTests
 
         var outbox = new FakeOutboxRepository([saleEvent]);
         var salesApi = new FakeSalesApiClient();
+        var refundsApi = new FakeRefundsApiClient();
+        var salesRepository = new FakeSalesRepository();
         var cashRegisterApi = new FakeCashRegisterApiClient();
         var cashRegisterRepository = new FakeCashRegisterRepository();
         var logger = new FakeErrorLogger();
-        var sut = new SyncService(outbox, salesApi, cashRegisterApi, cashRegisterRepository, logger);
+        var sut = new SyncService(outbox, salesApi, refundsApi, salesRepository, cashRegisterApi, cashRegisterRepository, logger);
 
         var sent = await sut.RunOnceAsync();
 
@@ -108,7 +106,7 @@ public sealed class SyncServiceTests
         Assert.Empty(outbox.MarkedAsSent);
         Assert.Single(outbox.RetryCalls);
         Assert.Equal(3, outbox.RetryCalls[0].Attempts);
-        Assert.Contains("Sessão remota ainda não vinculada", outbox.RetryCalls[0].Error);
+        Assert.Contains("Sessao remota ainda nao vinculada", outbox.RetryCalls[0].Error);
         Assert.Empty(logger.LoggedErrors);
     }
 
@@ -150,11 +148,52 @@ public sealed class SyncServiceTests
     {
         public List<string> Payloads { get; } = [];
 
-        public Task SendSaleAsync(string payloadJson, CancellationToken cancellationToken = default)
+        public Task<SaleSyncResult> SendSaleAsync(string payloadJson, CancellationToken cancellationToken = default)
+        {
+            Payloads.Add(payloadJson);
+            return Task.FromResult(new SaleSyncResult
+            {
+                RemoteSaleId = "remote-sale-1",
+                SaleNumber = 1042
+            });
+        }
+    }
+
+    private sealed class FakeRefundsApiClient : IRefundsApiClient
+    {
+        public List<string> Payloads { get; } = [];
+
+        public Task RegisterRefundAsync(string payloadJson, CancellationToken cancellationToken = default)
         {
             Payloads.Add(payloadJson);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeSalesRepository : ISalesRepository
+    {
+        public List<(Guid LocalSaleId, string RemoteSaleId, int? SaleNumber)> SavedReferences { get; } = [];
+
+        public Task SaveSaleWithOutboxAsync(Sale sale, string outboxPayloadJson, string? cashRegisterSessionId = null, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<SaleHistoryEntry>> GetHistoryAsync(DateTime date, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<SaleHistoryEntry>>([]);
+
+        public Task<Sale?> FindByIdAsync(Guid saleId, CancellationToken cancellationToken = default)
+            => Task.FromResult<Sale?>(null);
+
+        public Task SaveRemoteSaleReferenceAsync(Guid localSaleId, string remoteSaleId, int? saleNumber, CancellationToken cancellationToken = default)
+        {
+            SavedReferences.Add((localSaleId, remoteSaleId, saleNumber));
+            return Task.CompletedTask;
+        }
+
+        public Task SaveRefundAsync(Guid saleId, string reason, IReadOnlyCollection<SaleRefundItem> items, string? operatorId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task SaveRefundWithOutboxAsync(Guid saleId, string reason, IReadOnlyCollection<SaleRefundItem> items, string outboxPayloadJson, string? operatorId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class FakeCashRegisterApiClient : ICashRegisterApiClient

@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
 
@@ -10,6 +11,8 @@ public sealed class SyncService
     private static readonly TimeSpan MissingSessionRetryDelay = TimeSpan.FromSeconds(5);
     private readonly IOutboxRepository _outboxRepository;
     private readonly ISalesApiClient _salesApiClient;
+    private readonly IRefundsApiClient _refundsApiClient;
+    private readonly ISalesRepository _salesRepository;
     private readonly ICashRegisterApiClient _cashRegisterApiClient;
     private readonly ICashRegisterRepository _cashRegisterRepository;
     private readonly IErrorLogger _errorLogger;
@@ -17,12 +20,16 @@ public sealed class SyncService
     public SyncService(
         IOutboxRepository outboxRepository,
         ISalesApiClient salesApiClient,
+        IRefundsApiClient refundsApiClient,
+        ISalesRepository salesRepository,
         ICashRegisterApiClient cashRegisterApiClient,
         ICashRegisterRepository cashRegisterRepository,
         IErrorLogger errorLogger)
     {
         _outboxRepository = outboxRepository;
         _salesApiClient = salesApiClient;
+        _refundsApiClient = refundsApiClient;
+        _salesRepository = salesRepository;
         _cashRegisterApiClient = cashRegisterApiClient;
         _cashRegisterRepository = cashRegisterRepository;
         _errorLogger = errorLogger;
@@ -72,6 +79,7 @@ public sealed class SyncService
         {
             "CashRegisterOpened" => 0,
             "SaleCreated" => 1,
+            "SaleRefundCreated" => 1,
             "CashWithdrawalCreated" => 1,
             "CashRegisterClosed" => 2,
             _ => 3
@@ -84,6 +92,13 @@ public sealed class SyncService
         {
             case "SaleCreated":
                 await SendSaleAsync(outboxEvent.PayloadJson, cancellationToken);
+                break;
+            case "SaleRefundCreated":
+                {
+                    var payloadNode = JsonNode.Parse(outboxEvent.PayloadJson)?.AsObject() ?? [];
+                    payloadNode.Remove("local_refund_id");
+                    await _refundsApiClient.RegisterRefundAsync(payloadNode.ToJsonString(), cancellationToken);
+                }
                 break;
             case "CashWithdrawalCreated":
                 using (var document = JsonDocument.Parse(outboxEvent.PayloadJson))
@@ -131,45 +146,39 @@ public sealed class SyncService
                 }
                 break;
             default:
-                throw new InvalidOperationException($"Tipo de evento de integração desconhecido: {outboxEvent.Type}");
+                throw new InvalidOperationException($"Tipo de evento de integracao desconhecido: {outboxEvent.Type}");
         }
     }
-
 
     private async Task SendSaleAsync(string payloadJson, CancellationToken cancellationToken)
     {
         using var document = JsonDocument.Parse(payloadJson);
-        var root = document.RootElement;
-
-        if (!root.TryGetProperty("session_id", out var sessionIdElement))
+        var payloadNode = JsonNode.Parse(payloadJson)?.AsObject() ?? [];
+        Guid? localSaleId = null;
+        if (payloadNode["local_sale_id"] is JsonValue localSaleValue
+            && Guid.TryParse(localSaleValue.ToString(), out var parsedLocalSaleId))
         {
-            await _salesApiClient.SendSaleAsync(payloadJson, cancellationToken);
-            return;
+            localSaleId = parsedLocalSaleId;
+        }
+        payloadNode.Remove("local_sale_id");
+
+        SaleSyncResult result;
+        if (!document.RootElement.TryGetProperty("session_id", out var sessionIdElement))
+        {
+            result = await _salesApiClient.SendSaleAsync(payloadNode.ToJsonString(), cancellationToken);
+        }
+        else
+        {
+            var localSessionId = sessionIdElement.GetString() ?? string.Empty;
+            var remoteSessionId = await ResolveRemoteSessionIdOrThrowAsync(localSessionId, cancellationToken);
+            payloadNode["session_id"] = remoteSessionId;
+            result = await _salesApiClient.SendSaleAsync(payloadNode.ToJsonString(), cancellationToken);
         }
 
-        var localSessionId = sessionIdElement.GetString() ?? string.Empty;
-        var remoteSessionId = await ResolveRemoteSessionIdOrThrowAsync(localSessionId, cancellationToken);
-
-        var payload = JsonSerializer.Serialize(new
+        if (localSaleId.HasValue && !string.IsNullOrWhiteSpace(result.RemoteSaleId))
         {
-            sale_id = root.GetProperty("sale_id").GetGuid(),
-            created_at = root.GetProperty("created_at").GetDateTimeOffset(),
-            session_id = remoteSessionId,
-            payment_method = root.GetProperty("payment_method").GetString(),
-            payment_method_code = root.GetProperty("payment_method_code").GetString(),
-            payment_method_id = root.GetProperty("payment_method_id").GetInt32(),
-            total_cents = root.GetProperty("total_cents").GetInt32(),
-            operator_id = root.TryGetProperty("operator_id", out var operatorElement) ? operatorElement.GetString() : null,
-            items = root.GetProperty("items").EnumerateArray().Select(item => new
-            {
-                product_id = item.GetProperty("product_id").GetString(),
-                quantity = item.GetProperty("quantity").GetInt32(),
-                price_cents = item.GetProperty("price_cents").GetInt32(),
-                subtotal_cents = item.GetProperty("subtotal_cents").GetInt32()
-            })
-        });
-
-        await _salesApiClient.SendSaleAsync(payload, cancellationToken);
+            await _salesRepository.SaveRemoteSaleReferenceAsync(localSaleId.Value, result.RemoteSaleId, result.SaleNumber, cancellationToken);
+        }
     }
 
     private async Task<string> ResolveRemoteSessionIdOrThrowAsync(string localSessionId, CancellationToken cancellationToken)
@@ -182,13 +191,12 @@ public sealed class SyncService
 
         throw new RemoteSessionNotLinkedException(localSessionId);
     }
-
 }
 
 public sealed class RemoteSessionNotLinkedException : InvalidOperationException
 {
     public RemoteSessionNotLinkedException(string localSessionId)
-        : base($"Sessão remota ainda não vinculada para a sessão local '{localSessionId}'.")
+        : base($"Sessao remota ainda nao vinculada para a sessao local '{localSessionId}'.")
     {
     }
 }

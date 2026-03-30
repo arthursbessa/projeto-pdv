@@ -2,15 +2,18 @@ namespace Pdv.Application.Domain;
 
 public sealed class SaleItem
 {
+    public string? SaleItemId { get; init; }
     public required string ProductId { get; init; }
     public required string Barcode { get; init; }
     public required string Description { get; init; }
     public int PriceCents { get; init; }
+    public int RefundedQuantity { get; init; }
     public int Quantity { get; private set; } = 1;
 
     public int SubtotalCents => PriceCents * Quantity;
     public decimal Price => PriceCents / 100m;
     public decimal Subtotal => SubtotalCents / 100m;
+    public int RemainingRefundQuantity => Math.Max(Quantity - RefundedQuantity, 0);
 
     public void IncrementQuantity() => Quantity++;
 

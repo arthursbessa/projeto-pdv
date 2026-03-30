@@ -20,13 +20,13 @@ public sealed class SaleBuilderService
         var normalized = barcode.Trim();
         if (string.IsNullOrWhiteSpace(normalized))
         {
-            return (false, "Código inválido.", currentItems.ToArray());
+            return (false, "Codigo invalido.", currentItems.ToArray());
         }
 
         var product = await _productCacheRepository.FindByBarcodeAsync(normalized, cancellationToken);
         if (product is null || !product.Active)
         {
-            return (false, "Produto não encontrado no catálogo local.", currentItems.ToArray());
+            return (false, "Produto nao encontrado no catalogo local.", currentItems.ToArray());
         }
 
         var existing = currentItems.FirstOrDefault(x => x.ProductId == product.ProductId);

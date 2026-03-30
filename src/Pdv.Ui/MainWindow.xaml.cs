@@ -1,12 +1,9 @@
-using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using Microsoft.Extensions.DependencyInjection;
 using Pdv.Application.Domain;
+using Pdv.Ui.Services;
 using Pdv.Ui.ViewModels;
 using Pdv.Ui.Views;
 
@@ -54,12 +51,22 @@ public partial class MainWindow : Window
 
     private void Finalize_Click(object sender, RoutedEventArgs e)
     {
-        OpenFinalizeDialogAsync();
+        OpenFinalizeDialog();
     }
 
-    private void OpenFinalizeDialogAsync()
+    private async void SearchProduct_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainViewModel)
+        await OpenProductLookupAsync();
+    }
+
+    private async void SearchCustomer_Click(object sender, RoutedEventArgs e)
+    {
+        await OpenCustomerLookupAsync();
+    }
+
+    private void OpenFinalizeDialog()
+    {
+        if (DataContext is not MainViewModel vm)
         {
             return;
         }
@@ -69,7 +76,57 @@ public partial class MainWindow : Window
 
         if (result == true && modal.CompletedSale is not null && modal.ShouldPrintCoupon)
         {
-            PrintFiscalCoupon(modal.CompletedSale);
+            var printInfo = vm.GetStorePrintInfo();
+            _ = FiscalCouponPrinter.Print(
+                this,
+                modal.CompletedSale,
+                printInfo.StoreName,
+                printInfo.StoreAddress,
+                printInfo.StoreCnpj,
+                printInfo.StoreLogoPath);
+        }
+
+        FocusBarcode();
+    }
+
+    private async Task OpenProductLookupAsync()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var lookup = new ProductLookupWindow
+        {
+            Owner = this,
+            DataContext = App.Services.GetRequiredService<ProductLookupViewModel>()
+        };
+
+        if (lookup.ShowDialog() == true && lookup.SelectedProduct is not null)
+        {
+            await vm.AddProductByIdAsync(lookup.SelectedProduct.Id);
+            ItemsDataGrid.Items.Refresh();
+        }
+
+        FocusBarcode();
+    }
+
+    private async Task OpenCustomerLookupAsync()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var lookup = new CustomerLookupWindow
+        {
+            Owner = this,
+            DataContext = App.Services.GetRequiredService<CustomerLookupViewModel>()
+        };
+
+        if (lookup.ShowDialog() == true && lookup.SelectedCustomer is not null)
+        {
+            await vm.SelectCustomerByIdAsync(lookup.SelectedCustomer.Id);
         }
 
         FocusBarcode();
@@ -77,7 +134,10 @@ public partial class MainWindow : Window
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (DataContext is not MainViewModel vm) return;
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
 
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.F)
         {
@@ -88,7 +148,12 @@ public partial class MainWindow : Window
 
         if (e.Key == Key.F2)
         {
-            OpenFinalizeDialogAsync();
+            OpenFinalizeDialog();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F3)
+        {
+            _ = OpenProductLookupAsync();
             e.Handled = true;
         }
         else if (e.Key == Key.F4)
@@ -97,15 +162,20 @@ public partial class MainWindow : Window
             FocusBarcode();
             e.Handled = true;
         }
+        else if (e.Key == Key.F6)
+        {
+            OpenQuantityDialog();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F7)
+        {
+            _ = OpenCustomerLookupAsync();
+            e.Handled = true;
+        }
         else if (e.Key == Key.Escape)
         {
             vm.CancelSale();
             FocusBarcode();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.F6)
-        {
-            OpenQuantityDialog();
             e.Handled = true;
         }
     }
@@ -147,7 +217,7 @@ public partial class MainWindow : Window
                 Margin = new Thickness(20),
                 Children =
                 {
-                    new TextBlock { Text = $"{vm.SelectedItem.Description}", FontWeight = FontWeights.SemiBold },
+                    new TextBlock { Text = vm.SelectedItem.Description, FontWeight = FontWeights.SemiBold },
                     new TextBlock { Text = "Informe a quantidade:", Margin = new Thickness(0, 8, 0, 0) },
                     quantityTextBox,
                     new Button { Content = "Confirmar", Width = 110, Margin = new Thickness(0, 12, 0, 0), IsDefault = true, HorizontalAlignment = HorizontalAlignment.Right }
@@ -196,151 +266,6 @@ public partial class MainWindow : Window
         }
 
         FocusBarcode();
-    }
-
-    private void PrintFiscalCoupon(Sale sale)
-    {
-        var printDialog = new PrintDialog();
-        if (printDialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        var document = BuildFiscalCouponDocument(sale, printDialog.PrintableAreaWidth);
-        printDialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "Cupom Fiscal");
-    }
-
-    private FlowDocument BuildFiscalCouponDocument(Sale sale, double printableAreaWidth)
-    {
-        var cupomText = BuildFiscalCouponText(sale);
-        var document = new FlowDocument
-        {
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 11,
-            PagePadding = new Thickness(20),
-            ColumnWidth = printableAreaWidth,
-            TextAlignment = TextAlignment.Left
-        };
-
-        var logo = TryCreateBlackAndWhiteLogo();
-        if (logo is not null)
-        {
-            document.Blocks.Add(new Paragraph(new InlineUIContainer(new Image
-            {
-                Source = logo,
-                Width = 140,
-                Stretch = Stretch.Uniform,
-                HorizontalAlignment = HorizontalAlignment.Center
-            }))
-            {
-                TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 8)
-            });
-        }
-
-        document.Blocks.Add(new Paragraph(new Run(cupomText))
-        {
-            Margin = new Thickness(0)
-        });
-
-        return document;
-    }
-
-    private BitmapSource? TryCreateBlackAndWhiteLogo()
-    {
-        if (DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(vm.StoreLogoPath))
-        {
-            return null;
-        }
-
-        var fullPath = vm.StoreLogoPath;
-        if (!Path.IsPathRooted(fullPath))
-        {
-            fullPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, fullPath));
-        }
-
-        if (!File.Exists(fullPath))
-        {
-            return null;
-        }
-
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.UriSource = new Uri(fullPath, UriKind.Absolute);
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.EndInit();
-        image.Freeze();
-
-        var blackAndWhite = new FormatConvertedBitmap();
-        blackAndWhite.BeginInit();
-        blackAndWhite.Source = image;
-        blackAndWhite.DestinationFormat = PixelFormats.Gray8;
-        blackAndWhite.EndInit();
-        blackAndWhite.Freeze();
-
-        return blackAndWhite;
-    }
-
-    private string BuildFiscalCouponText(Sale sale)
-    {
-        const int width = 44;
-        var sb = new StringBuilder();
-
-        var vm = DataContext as MainViewModel;
-        var storeName = string.IsNullOrWhiteSpace(vm?.StoreName) ? "LOJA" : vm!.StoreName;
-        var storeAddress = string.IsNullOrWhiteSpace(vm?.StoreAddress) ? "ENDEREÇO NÃO INFORMADO" : vm!.StoreAddress;
-        var storeCnpj = string.IsNullOrWhiteSpace(vm?.StoreCnpj) ? "NÃO INFORMADO" : vm!.StoreCnpj;
-
-        sb.AppendLine(Center(storeName.ToUpperInvariant(), width));
-        sb.AppendLine(Center(storeAddress.ToUpperInvariant(), width));
-        sb.AppendLine($"CNPJ:{storeCnpj}");
-        sb.AppendLine(new string('-', width));
-        sb.AppendLine(Center("CUPOM FISCAL", width));
-        sb.AppendLine(new string('-', width));
-        sb.AppendLine("ITEM CODIGO      DESCRICAO          VL ITEM");
-
-        var index = 1;
-        foreach (var item in sale.Items)
-        {
-            var description = item.Description.Length > 16
-                ? item.Description[..16]
-                : item.Description;
-
-            var line = string.Format("{0:000} {1,-11} {2,-16} {3,8}",
-                index,
-                item.Barcode.Length > 11 ? item.Barcode[..11] : item.Barcode,
-                description,
-                FormatMoney(item.SubtotalCents));
-
-            sb.AppendLine(line);
-            sb.AppendLine($"    {item.Quantity}UN X {FormatMoney(item.PriceCents)}");
-            index++;
-        }
-
-        sb.AppendLine(new string('-', width));
-        sb.AppendLine($"TOTAL R$ {FormatMoney(sale.TotalCents)}");
-        sb.AppendLine($"PAGAMENTO: {sale.PaymentMethod}");
-        sb.AppendLine($"DATA: {sale.CreatedAt.ToLocalTime():dd/MM/yyyy HH:mm:ss}");
-        sb.AppendLine($"CONTROLE:{sale.SaleId.ToString()[..8].ToUpperInvariant()}");
-        sb.AppendLine(new string('-', width));
-
-        return sb.ToString();
-    }
-
-    private static string Center(string text, int width)
-    {
-        if (text.Length >= width)
-        {
-            return text;
-        }
-
-        var leftPadding = (width - text.Length) / 2;
-        return new string(' ', leftPadding) + text;
-    }
-
-    private static string FormatMoney(int valueInCents)
-    {
-        return (valueInCents / 100m).ToString("N2");
     }
 
     private void FocusBarcode()

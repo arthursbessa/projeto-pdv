@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS customers (
     name TEXT NOT NULL,
     phone TEXT NULL,
     email TEXT NULL,
+    address TEXT NULL,
+    notes TEXT NULL,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -113,14 +115,20 @@ CREATE TABLE IF NOT EXISTS sales (
     total_cents INTEGER NOT NULL,
     payment_method TEXT NOT NULL,
     payment_method_id INTEGER NULL,
+    received_amount_cents INTEGER NULL,
+    change_amount_cents INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'COMPLETED',
     customer_id TEXT NULL,
+    operator_id TEXT NULL,
     cash_register_session_id TEXT NULL,
+    remote_sale_id TEXT NULL,
+    sale_number INTEGER NULL,
     discount_cents INTEGER NOT NULL DEFAULT 0,
     surcharge_cents INTEGER NOT NULL DEFAULT 0,
     notes TEXT NULL,
     FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id),
     FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (operator_id) REFERENCES users(id),
     FOREIGN KEY (cash_register_session_id) REFERENCES cash_register_sessions(id)
 );
 
@@ -149,6 +157,28 @@ CREATE TABLE IF NOT EXISTS sale_payments (
     FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
 );
 
+CREATE TABLE IF NOT EXISTS sale_refunds (
+    id TEXT PRIMARY KEY,
+    sale_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    operator_id TEXT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    synced_at TEXT NULL,
+    FOREIGN KEY (sale_id) REFERENCES sales(id),
+    FOREIGN KEY (operator_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS sale_refund_items (
+    id TEXT PRIMARY KEY,
+    refund_id TEXT NOT NULL,
+    sale_item_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    FOREIGN KEY (refund_id) REFERENCES sale_refunds(id),
+    FOREIGN KEY (sale_item_id) REFERENCES sale_items(id)
+);
+
 CREATE TABLE IF NOT EXISTS outbox_events (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
@@ -169,6 +199,10 @@ CREATE INDEX IF NOT EXISTS idx_sales_status ON sales (status);
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id);
 CREATE INDEX IF NOT EXISTS idx_sale_items_barcode ON sale_items (barcode);
 CREATE INDEX IF NOT EXISTS idx_sale_payments_sale_id ON sale_payments (sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_refunds_sale_id ON sale_refunds (sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_refunds_status ON sale_refunds (status);
+CREATE INDEX IF NOT EXISTS idx_sale_refund_items_refund_id ON sale_refund_items (refund_id);
+CREATE INDEX IF NOT EXISTS idx_sale_refund_items_sale_item_id ON sale_refund_items (sale_item_id);
 CREATE INDEX IF NOT EXISTS idx_customers_document_number ON customers (document_number);
 CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox_events (status);
 CREATE INDEX IF NOT EXISTS idx_outbox_next_retry_at ON outbox_events (next_retry_at);
@@ -209,11 +243,18 @@ CREATE TABLE IF NOT EXISTS store_settings (
         await createStoreSettings.ExecuteNonQueryAsync(cancellationToken);
 
         await EnsureColumnAsync(connection, "sales", "payment_method_id", "INTEGER NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "received_amount_cents", "INTEGER NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "change_amount_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "customer_id", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "operator_id", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "cash_register_session_id", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "remote_sale_id", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "sale_number", "INTEGER NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "discount_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "surcharge_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "notes", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "customers", "address", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "customers", "notes", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sale_items", "discount_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "cash_register_sessions", "business_date", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_register_sessions", "opened_by_user_id", "TEXT NULL", cancellationToken);
@@ -221,6 +262,42 @@ CREATE TABLE IF NOT EXISTS store_settings (
         await EnsureColumnAsync(connection, "cash_register_sessions", "remote_session_id", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_withdrawals", "reason", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "cash_withdrawals", "created_by_user_id", "TEXT NULL", cancellationToken);
+
+        var createSaleRefunds = connection.CreateCommand();
+        createSaleRefunds.CommandText = @"
+CREATE TABLE IF NOT EXISTS sale_refunds (
+    id TEXT PRIMARY KEY,
+    sale_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    operator_id TEXT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    synced_at TEXT NULL,
+    FOREIGN KEY (sale_id) REFERENCES sales(id),
+    FOREIGN KEY (operator_id) REFERENCES users(id)
+);";
+        await createSaleRefunds.ExecuteNonQueryAsync(cancellationToken);
+
+        var createSaleRefundItems = connection.CreateCommand();
+        createSaleRefundItems.CommandText = @"
+CREATE TABLE IF NOT EXISTS sale_refund_items (
+    id TEXT PRIMARY KEY,
+    refund_id TEXT NOT NULL,
+    sale_item_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    FOREIGN KEY (refund_id) REFERENCES sale_refunds(id),
+    FOREIGN KEY (sale_item_id) REFERENCES sale_items(id)
+);";
+        await createSaleRefundItems.ExecuteNonQueryAsync(cancellationToken);
+
+        var createRefundIndexes = connection.CreateCommand();
+        createRefundIndexes.CommandText = @"
+CREATE INDEX IF NOT EXISTS idx_sale_refunds_sale_id ON sale_refunds (sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_refunds_status ON sale_refunds (status);
+CREATE INDEX IF NOT EXISTS idx_sale_refund_items_refund_id ON sale_refund_items (refund_id);
+CREATE INDEX IF NOT EXISTS idx_sale_refund_items_sale_item_id ON sale_refund_items (sale_item_id);";
+        await createRefundIndexes.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task EnsureColumnAsync(SqliteConnection connection, string table, string column, string definition, CancellationToken cancellationToken)

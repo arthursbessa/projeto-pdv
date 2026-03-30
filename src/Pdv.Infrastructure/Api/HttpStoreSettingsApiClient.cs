@@ -10,11 +10,13 @@ public sealed class HttpStoreSettingsApiClient : IStoreSettingsApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly PdvOptions _options;
+    private readonly IErrorLogger _errorLogger;
 
-    public HttpStoreSettingsApiClient(HttpClient httpClient, PdvOptions options)
+    public HttpStoreSettingsApiClient(HttpClient httpClient, PdvOptions options, IErrorLogger errorLogger)
     {
         _httpClient = httpClient;
         _options = options;
+        _errorLogger = errorLogger;
     }
 
     public async Task<StoreSettings?> GetSettingsAsync(CancellationToken cancellationToken = default)
@@ -26,12 +28,16 @@ public sealed class HttpStoreSettingsApiClient : IStoreSettingsApiClient
 
         var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-store-settings";
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        request.Headers.Add("x-pdv-token", _options.TerminalToken);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        PdvApiRequestHeaders.Apply(request, _options);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _errorLogger.LogError(
+                "Falha ao consultar configuracoes da loja no PDV",
+                new HttpRequestException(
+                    $"Endpoint '{endpoint}' retornou {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}"));
             return null;
         }
 
@@ -40,6 +46,9 @@ public sealed class HttpStoreSettingsApiClient : IStoreSettingsApiClient
 
         if (!doc.RootElement.TryGetProperty("settings", out var settings))
         {
+            _errorLogger.LogError(
+                "Resposta invalida nas configuracoes da loja do PDV",
+                new InvalidOperationException($"Endpoint '{endpoint}' nao retornou o objeto 'settings'."));
             return null;
         }
 
@@ -76,15 +85,43 @@ public sealed class HttpStoreSettingsApiClient : IStoreSettingsApiClient
 
             var directory = Path.Combine(AppContext.BaseDirectory, "data", "assets");
             Directory.CreateDirectory(directory);
-            var fullPath = Path.Combine(directory, $"store-logo{extension}");
+            var fileName = $"store-logo-{DateTime.UtcNow:yyyyMMddHHmmssfff}{extension}";
+            var fullPath = Path.Combine(directory, fileName);
 
             var bytes = await _httpClient.GetByteArrayAsync(uri, cancellationToken);
             await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken);
+            CleanupOldLogoFiles(directory, fullPath);
             return fullPath;
+        }
+        catch (Exception ex)
+        {
+            _errorLogger.LogError($"Falha ao baixar logo da loja em '{logoUrl}'", ex);
+            return string.Empty;
+        }
+    }
+
+    private static void CleanupOldLogoFiles(string directory, string currentFilePath)
+    {
+        try
+        {
+            foreach (var filePath in Directory.GetFiles(directory, "store-logo-*"))
+            {
+                if (string.Equals(filePath, currentFilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    File.Delete(filePath);
+                }
+                catch
+                {
+                }
+            }
         }
         catch
         {
-            return string.Empty;
         }
     }
 }

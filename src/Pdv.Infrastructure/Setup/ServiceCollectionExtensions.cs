@@ -16,12 +16,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(new SqliteConnectionFactory(dbPath));
 
         services.AddHttpClient<ICatalogApiClient, HttpCatalogApiClient>();
+        services.AddHttpClient<ICustomersApiClient, HttpCustomersApiClient>();
         services.AddHttpClient<ISalesApiClient, HttpSalesApiClient>();
+        services.AddHttpClient<IRefundsApiClient, HttpRefundsApiClient>();
         services.AddHttpClient<IAuthApiClient, HttpAuthApiClient>();
-        services.AddHttpClient<IUsersApiClient, HttpUsersApiClient>();
         services.AddHttpClient<IStoreSettingsApiClient, HttpStoreSettingsApiClient>();
         services.AddHttpClient<ICashRegisterApiClient, HttpCashRegisterApiClient>();
 
+        services.AddSingleton<ICustomerRepository, CustomerRepository>();
         services.AddSingleton<IProductCacheRepository, ProductCacheRepository>();
         services.AddSingleton<ISalesRepository, SalesRepository>();
         services.AddSingleton<ICashRegisterRepository, CashRegisterRepository>();

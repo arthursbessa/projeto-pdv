@@ -17,6 +17,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly ISalesRepository _salesRepository;
     private readonly IOutboxRepository _outboxRepository;
     private readonly IProductCacheRepository _productCacheRepository;
+    private readonly ICustomerRepository _customerRepository;
     private readonly ICatalogApiClient _catalogApiClient;
     private readonly SyncService _syncService;
     private readonly SessionContext _session;
@@ -30,12 +31,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _storeCnpj = string.Empty;
     private string _storeAddress = string.Empty;
     private string _storeLogoPath = string.Empty;
+    private string _lastScannedDescription = "Aguardando leitura de produto";
+    private string _lastScannedBarcode = "-";
+    private int _lastScannedPriceCents;
+    private int _lastScannedQuantity;
+    private CustomerRecord? _selectedCustomer;
 
     public MainViewModel(
         SaleBuilderService saleBuilderService,
         ISalesRepository salesRepository,
         IOutboxRepository outboxRepository,
         IProductCacheRepository productCacheRepository,
+        ICustomerRepository customerRepository,
         ICatalogApiClient catalogApiClient,
         SyncService syncService,
         PdvOptions options,
@@ -47,6 +54,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _salesRepository = salesRepository;
         _outboxRepository = outboxRepository;
         _productCacheRepository = productCacheRepository;
+        _customerRepository = customerRepository;
         _catalogApiClient = catalogApiClient;
         _syncService = syncService;
         _session = session;
@@ -57,21 +65,107 @@ public sealed class MainViewModel : INotifyPropertyChanged
         DatabaseFullPath = options.DatabaseFullPath;
 
         RemoveSelectedCommand = new RelayCommand(RemoveSelectedItem, () => SelectedItem is not null);
-        CancelSaleCommand = new RelayCommand(CancelSale, () => Items.Any());
+        CancelSaleCommand = new RelayCommand(CancelSale, () => Items.Any() || SelectedCustomer is not null);
     }
 
     public ObservableCollection<SaleItem> Items { get; } = [];
     public RelayCommand RemoveSelectedCommand { get; }
     public RelayCommand CancelSaleCommand { get; }
 
-    public string BarcodeInput { get => _barcodeInput; set => SetField(ref _barcodeInput, value); }
-    public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
-    public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
-    public string OfflineStatus => "Integração automática ativa";
-    public string StoreName { get => _storeName; set => SetField(ref _storeName, value); }
-    public string StoreCnpj { get => _storeCnpj; set => SetField(ref _storeCnpj, value); }
-    public string StoreAddress { get => _storeAddress; set => SetField(ref _storeAddress, value); }
-    public string StoreLogoPath { get => _storeLogoPath; set => SetField(ref _storeLogoPath, value); }
+    public string BarcodeInput
+    {
+        get => _barcodeInput;
+        set => SetField(ref _barcodeInput, value);
+    }
+
+    public string StatusMessage
+    {
+        get => _statusMessage;
+        set => SetField(ref _statusMessage, value);
+    }
+
+    public bool IsBusy
+    {
+        get => _isBusy;
+        set => SetField(ref _isBusy, value);
+    }
+
+    public string OfflineStatus => "Integracao automatica ativa";
+
+    public string StoreName
+    {
+        get => _storeName;
+        set => SetField(ref _storeName, value);
+    }
+
+    public string StoreCnpj
+    {
+        get => _storeCnpj;
+        set => SetField(ref _storeCnpj, value);
+    }
+
+    public string StoreAddress
+    {
+        get => _storeAddress;
+        set => SetField(ref _storeAddress, value);
+    }
+
+    public string StoreLogoPath
+    {
+        get => _storeLogoPath;
+        set => SetField(ref _storeLogoPath, value);
+    }
+
+    public string LastScannedDescription
+    {
+        get => _lastScannedDescription;
+        private set => SetField(ref _lastScannedDescription, value);
+    }
+
+    public string LastScannedBarcode
+    {
+        get => _lastScannedBarcode;
+        private set => SetField(ref _lastScannedBarcode, value);
+    }
+
+    public int LastScannedPriceCents
+    {
+        get => _lastScannedPriceCents;
+        private set => SetField(ref _lastScannedPriceCents, value);
+    }
+
+    public int LastScannedQuantity
+    {
+        get => _lastScannedQuantity;
+        private set => SetField(ref _lastScannedQuantity, value);
+    }
+
+    public CustomerRecord? SelectedCustomer
+    {
+        get => _selectedCustomer;
+        private set
+        {
+            if (SetField(ref _selectedCustomer, value))
+            {
+                OnPropertyChanged(nameof(SelectedCustomerDisplay));
+                OnPropertyChanged(nameof(SelectedCustomerHint));
+                CancelSaleCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string SelectedCustomerDisplay => SelectedCustomer is null
+        ? "Nenhum cliente selecionado"
+        : string.IsNullOrWhiteSpace(SelectedCustomer.Cpf)
+            ? SelectedCustomer.Name
+            : $"{SelectedCustomer.Name} - {SelectedCustomer.Cpf}";
+
+    public string SelectedCustomerHint => SelectedCustomer is null
+        ? "Venda sem cliente identificado"
+        : "Cliente vinculado a esta venda";
+
+    public string LastScannedPriceFormatted => MoneyFormatter.FormatFromCents(LastScannedPriceCents);
+    public string LastScannedQuantityText => LastScannedQuantity <= 0 ? "Nenhum item lido" : $"Quantidade na venda: {LastScannedQuantity}";
     public string DatabaseRelativePath { get; }
     public string DatabaseFullPath { get; }
     public string DatabaseStatus => $"Cache local: {DatabaseRelativePath}";
@@ -91,7 +185,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-
     public async Task LoadStoreSettingsAsync()
     {
         var settings = await _storeSettingsRepository.GetCurrentAsync();
@@ -108,12 +201,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task RefreshCatalogAsync()
     {
-        if (IsBusy) return;
+        if (IsBusy)
+        {
+            return;
+        }
 
         IsBusy = true;
         try
         {
-            StatusMessage = "Sincronizando catálogo...";
+            StatusMessage = "Sincronizando catalogo...";
             var remoteProducts = await _catalogApiClient.GetCatalogAsync();
             foreach (var product in remoteProducts)
             {
@@ -128,12 +224,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
 
-            StatusMessage = $"Catálogo sincronizado: {remoteProducts.Count} item(ns).";
+            StatusMessage = $"Catalogo sincronizado: {remoteProducts.Count} item(ns).";
         }
         catch (Exception ex)
         {
-            _errorLogger.LogError("Falha ao atualizar catálogo", ex);
-            StatusMessage = $"Falha ao atualizar catálogo: {ex.Message}";
+            _errorLogger.LogError("Falha ao atualizar catalogo", ex);
+            StatusMessage = "Nao foi possivel atualizar o catalogo agora.";
         }
         finally
         {
@@ -143,7 +239,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task SyncSalesAsync()
     {
-        if (IsBusy) return;
+        if (IsBusy)
+        {
+            return;
+        }
 
         IsBusy = true;
         try
@@ -151,12 +250,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             StatusMessage = "Integrando vendas pendentes...";
             var sent = await _syncService.RunOnceAsync();
             var pending = await _outboxRepository.GetPendingCountAsync();
-            StatusMessage = $"Integração concluída. Enviadas: {sent}. Pendentes: {pending}.";
+            StatusMessage = $"Integracao concluida. Enviadas: {sent}. Pendentes: {pending}.";
         }
         catch (Exception ex)
         {
-            _errorLogger.LogError("Falha na integração manual de vendas", ex);
-            StatusMessage = $"Falha na integração: {ex.Message}";
+            _errorLogger.LogError("Falha na integracao manual de vendas", ex);
+            StatusMessage = "Nao foi possivel integrar as vendas agora.";
         }
         finally
         {
@@ -173,16 +272,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         BarcodeInput = BarcodeInput.Trim();
-
         if (string.IsNullOrWhiteSpace(BarcodeInput))
         {
-            StatusMessage = "Informe um código de barras para adicionar.";
+            StatusMessage = "Informe um codigo de barras para adicionar.";
             return;
         }
 
+        var barcode = BarcodeInput;
         var temp = Items.ToList();
-        var result = await _saleBuilderService.AddByBarcodeAsync(BarcodeInput, temp);
-
+        var result = await _saleBuilderService.AddByBarcodeAsync(barcode, temp);
         if (!result.Added)
         {
             System.Media.SystemSounds.Beep.Play();
@@ -192,8 +290,74 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         ReplaceItems(result.Items);
+        var scannedItem = result.Items.FirstOrDefault(x => x.Barcode == barcode);
+        if (scannedItem is not null)
+        {
+            UpdateLastScanned(scannedItem);
+        }
+
         BarcodeInput = string.Empty;
-        StatusMessage = "Item adicionado à venda.";
+        StatusMessage = "Item adicionado a venda.";
+    }
+
+    public async Task<bool> AddProductByIdAsync(string productId)
+    {
+        if (_session.OpenCashRegister is null)
+        {
+            StatusMessage = "Abra o caixa para iniciar vendas.";
+            return false;
+        }
+
+        var product = await _productCacheRepository.FindByIdAsync(productId);
+        if (product is null || !product.Active)
+        {
+            StatusMessage = "Produto selecionado nao esta disponivel no catalogo local.";
+            return false;
+        }
+
+        var existing = Items.FirstOrDefault(x => x.ProductId == product.ProductId);
+        if (existing is not null)
+        {
+            existing.IncrementQuantity();
+            UpdateLastScanned(existing);
+        }
+        else
+        {
+            var saleItem = new SaleItem
+            {
+                ProductId = product.ProductId,
+                Barcode = product.Barcode,
+                Description = product.Description,
+                PriceCents = product.PriceCents
+            };
+
+            Items.Add(saleItem);
+            UpdateLastScanned(saleItem);
+        }
+
+        NotifyTotals();
+        StatusMessage = "Produto inserido manualmente na venda.";
+        return true;
+    }
+
+    public async Task<bool> SelectCustomerByIdAsync(string customerId)
+    {
+        var customer = await _customerRepository.FindByIdAsync(customerId);
+        if (customer is null)
+        {
+            StatusMessage = "Cliente selecionado nao foi encontrado.";
+            return false;
+        }
+
+        SelectedCustomer = customer;
+        StatusMessage = $"Cliente selecionado: {customer.Name}.";
+        return true;
+    }
+
+    public void ClearSelectedCustomer()
+    {
+        SelectedCustomer = null;
+        StatusMessage = "Cliente removido da venda.";
     }
 
     public void RemoveSelectedItem()
@@ -214,6 +378,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         Items.Clear();
         SelectedItem = null;
+        SelectedCustomer = null;
         NotifyTotals();
         StatusMessage = "Venda cancelada.";
     }
@@ -228,12 +393,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (!int.TryParse(quantityText, out var quantity) || quantity <= 0)
         {
-            StatusMessage = "Quantidade inválida. Informe um número inteiro maior que zero.";
+            StatusMessage = "Quantidade invalida. Informe um numero inteiro maior que zero.";
             return false;
         }
 
         item.SetQuantity(quantity);
         NotifyTotals();
+        if (LastScannedBarcode == item.Barcode)
+        {
+            UpdateLastScanned(item);
+        }
+
         StatusMessage = "Quantidade atualizada.";
         return true;
     }
@@ -243,7 +413,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return UpdateItemQuantity(SelectedItem, quantityText);
     }
 
-    public async Task<Sale?> FinalizeAsync(PaymentMethod paymentMethod)
+    public async Task<Sale?> FinalizeAsync(PaymentMethod paymentMethod, int? receivedAmountCents = null)
     {
         if (IsBusy)
         {
@@ -268,15 +438,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return null;
         }
 
+        if (paymentMethod == PaymentMethod.Cash)
+        {
+            if (!receivedAmountCents.HasValue || receivedAmountCents.Value < TotalCents)
+            {
+                StatusMessage = "Valor recebido em dinheiro deve ser maior ou igual ao total da venda.";
+                return null;
+            }
+        }
+
         IsBusy = true;
         try
         {
             StatusMessage = "Finalizando venda...";
+            var changeAmountCents = paymentMethod == PaymentMethod.Cash && receivedAmountCents.HasValue
+                ? receivedAmountCents.Value - TotalCents
+                : 0;
+
             var sale = new Sale
             {
                 SaleId = Guid.NewGuid(),
                 CreatedAt = DateTimeOffset.UtcNow,
                 PaymentMethod = paymentMethod,
+                CustomerId = SelectedCustomer?.Id,
+                CustomerName = SelectedCustomer?.Name,
+                OperatorId = _session.CurrentUser?.Id,
+                OperatorName = _session.CurrentUser?.FullName,
+                ReceivedAmountCents = paymentMethod == PaymentMethod.Cash ? receivedAmountCents : null,
+                ChangeAmountCents = changeAmountCents,
+                CashRegisterSessionId = _session.OpenCashRegister.Id,
                 Items = Items.Select(x => new SaleItem
                 {
                     ProductId = x.ProductId,
@@ -293,20 +483,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var payload = JsonSerializer.Serialize(new
             {
-                sale_id = sale.SaleId,
-                created_at = sale.CreatedAt,
+                local_sale_id = sale.SaleId,
                 session_id = _session.OpenCashRegister.Id,
                 payment_method = sale.PaymentMethod.ToString().ToLowerInvariant(),
-                payment_method_code = sale.PaymentMethod.ToString().ToUpperInvariant(),
-                payment_method_id = (int)sale.PaymentMethod,
-                total_cents = sale.TotalCents,
-                operator_id = _session.CurrentUser?.Id,
+                customer_id = sale.CustomerId,
                 items = sale.Items.Select(x => new
                 {
                     product_id = x.ProductId,
-                    quantity = x.Quantity,
-                    price_cents = x.PriceCents,
-                    subtotal_cents = x.SubtotalCents
+                    barcode = x.Barcode,
+                    quantity = x.Quantity
                 })
             });
 
@@ -314,10 +499,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
             TriggerBackgroundSync();
 
             var pending = await _outboxRepository.GetPendingCountAsync();
-
             CancelSale();
-            StatusMessage = $"Venda finalizada ({paymentMethod}) e enviada para integração assíncrona. Pendentes atuais: {pending}.";
+            StatusMessage = $"Venda finalizada ({paymentMethod}) e enviada para integracao assincrona. Pendentes atuais: {pending}.";
             return sale;
+        }
+        catch (Exception ex)
+        {
+            _errorLogger.LogError("Falha ao finalizar venda no PDV", ex);
+            StatusMessage = "Nao foi possivel finalizar a venda. Tente novamente.";
+            return null;
         }
         finally
         {
@@ -325,6 +515,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public (string StoreName, string StoreAddress, string StoreCnpj, string StoreLogoPath) GetStorePrintInfo()
+    {
+        return (StoreName, StoreAddress, StoreCnpj, StoreLogoPath);
+    }
 
     private void TriggerBackgroundSync()
     {
@@ -336,7 +530,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
             catch (Exception ex)
             {
-                _errorLogger.LogError("Falha na integração assíncrona de venda", ex);
+                _errorLogger.LogError("Falha na integracao assincrona de venda", ex);
             }
         });
     }
@@ -344,8 +538,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void ReplaceItems(IReadOnlyCollection<SaleItem> items)
     {
         Items.Clear();
-        foreach (var item in items) Items.Add(item);
+        foreach (var item in items)
+        {
+            Items.Add(item);
+        }
+
         NotifyTotals();
+    }
+
+    private void UpdateLastScanned(SaleItem item)
+    {
+        LastScannedDescription = item.Description;
+        LastScannedBarcode = item.Barcode;
+        LastScannedPriceCents = item.PriceCents;
+        LastScannedQuantity = item.Quantity;
+        OnPropertyChanged(nameof(LastScannedPriceFormatted));
+        OnPropertyChanged(nameof(LastScannedQuantityText));
     }
 
     private void NotifyTotals()
@@ -357,10 +565,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
-        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return false;
+        }
+
         field = value;
         OnPropertyChanged(propertyName);
         return true;
