@@ -185,6 +185,100 @@ function New-GitTagAndPush {
     }
 }
 
+function Get-GitHubReleaseByTag {
+    param(
+        [hashtable]$Repository,
+        [string]$Version,
+        [hashtable]$Headers
+    )
+
+    try {
+        return Invoke-RestMethod `
+            -Method Get `
+            -Uri "https://api.github.com/repos/$($Repository.Owner)/$($Repository.Name)/releases/tags/$Version" `
+            -Headers $Headers
+    }
+    catch {
+        if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) {
+            return $null
+        }
+
+        throw
+    }
+}
+
+function Get-GitHubReleaseAssets {
+    param(
+        [hashtable]$Repository,
+        [int64]$ReleaseId,
+        [hashtable]$Headers
+    )
+
+    return Invoke-RestMethod `
+        -Method Get `
+        -Uri "https://api.github.com/repos/$($Repository.Owner)/$($Repository.Name)/releases/$ReleaseId/assets" `
+        -Headers $Headers
+}
+
+function Remove-GitHubReleaseAsset {
+    param(
+        [hashtable]$Repository,
+        [int64]$AssetId,
+        [hashtable]$Headers
+    )
+
+    Invoke-RestMethod `
+        -Method Delete `
+        -Uri "https://api.github.com/repos/$($Repository.Owner)/$($Repository.Name)/releases/assets/$AssetId" `
+        -Headers $Headers | Out-Null
+}
+
+function Ensure-GitHubRelease {
+    param(
+        [hashtable]$Repository,
+        [string]$Version,
+        [hashtable]$Headers
+    )
+
+    $existingRelease = Get-GitHubReleaseByTag -Repository $Repository -Version $Version -Headers $Headers
+    if ($existingRelease) {
+        return $existingRelease
+    }
+
+    $releaseBody = @{
+        tag_name = $Version
+        name = $Version
+        generate_release_notes = $true
+    } | ConvertTo-Json
+
+    try {
+        return Invoke-RestMethod `
+            -Method Post `
+            -Uri "https://api.github.com/repos/$($Repository.Owner)/$($Repository.Name)/releases" `
+            -Headers $Headers `
+            -Body $releaseBody `
+            -ContentType "application/json"
+    }
+    catch {
+        $responseBody = $null
+        if ($_.Exception.Response) {
+            try {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $responseBody = $reader.ReadToEnd()
+            }
+            catch {
+                $responseBody = $null
+            }
+        }
+
+        if ($responseBody -and $responseBody -match 'already_exists') {
+            return Get-GitHubReleaseByTag -Repository $Repository -Version $Version -Headers $Headers
+        }
+
+        throw
+    }
+}
+
 function New-GitHubRelease {
     param(
         [hashtable]$Repository,
@@ -208,23 +302,19 @@ function New-GitHubRelease {
         "User-Agent" = "projeto-pdv-release-script"
     }
 
-    $releaseBody = @{
-        tag_name = $Version
-        name = $Version
-        generate_release_notes = $true
-    } | ConvertTo-Json
-
-    $release = Invoke-RestMethod `
-        -Method Post `
-        -Uri "https://api.github.com/repos/$($Repository.Owner)/$($Repository.Name)/releases" `
-        -Headers $headers `
-        -Body $releaseBody `
-        -ContentType "application/json"
+    $release = Ensure-GitHubRelease -Repository $Repository -Version $Version -Headers $headers
 
     $uploadUrl = $release.upload_url -replace '\{.*\}$', ''
     $assetName = [System.IO.Path]::GetFileName($ZipPath)
     $uploadUri = [System.UriBuilder]::new($uploadUrl)
     $uploadUri.Query = "name=$([System.Uri]::EscapeDataString($assetName))"
+
+    $assets = Get-GitHubReleaseAssets -Repository $Repository -ReleaseId $release.id -Headers $headers
+    foreach ($asset in @($assets)) {
+        if ($asset.name -eq $assetName) {
+            Remove-GitHubReleaseAsset -Repository $Repository -AssetId $asset.id -Headers $headers
+        }
+    }
 
     Invoke-RestMethod `
         -Method Post `
@@ -249,9 +339,9 @@ if (-not $AllowDirty) {
     Assert-CleanWorktree -RepoRoot $repoRoot
 }
 
-if (-not $SkipGit -and -not (Test-GitTagExists -RepoRoot $repoRoot -TagName $Version)) {
-    Remove-ExistingTag -RepoRoot $repoRoot -TagName $Version
-}
+    if (-not $SkipGit -and -not (Test-GitTagExists -RepoRoot $repoRoot -TagName $Version)) {
+        Remove-ExistingTag -RepoRoot $repoRoot -TagName $Version
+    }
 
 if (-not $SkipTests) {
     Write-Step "Executando testes"
