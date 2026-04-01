@@ -223,10 +223,12 @@ function New-GitHubRelease {
 
     $uploadUrl = $release.upload_url -replace '\{.*\}$', ''
     $assetName = [System.IO.Path]::GetFileName($ZipPath)
+    $uploadUri = [System.UriBuilder]::new($uploadUrl)
+    $uploadUri.Query = "name=$([System.Uri]::EscapeDataString($assetName))"
 
     Invoke-RestMethod `
         -Method Post `
-        -Uri "$uploadUrl?name=$assetName" `
+        -Uri $uploadUri.Uri.AbsoluteUri `
         -Headers @{
             Authorization = "Bearer $token"
             Accept = "application/vnd.github+json"
