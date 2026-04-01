@@ -59,6 +59,26 @@ dotnet test
 dotnet run --project src/Pdv.Ui/Pdv.Ui.csproj
 ```
 
+## Como gerar uma release para o cliente
+
+O projeto possui o script `scripts/release-client.ps1` para automatizar a geracao do pacote do cliente e a publicacao da tag/release.
+
+Exemplo de uso:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release-client.ps1 -Version v1.1.0
+```
+
+O script pode:
+
+- rodar os testes;
+- gerar o pacote do cliente em `publish\<versao>\`;
+- criar o arquivo `.zip` da versao;
+- criar e enviar a tag para o GitHub;
+- criar o Release automaticamente quando `GITHUB_TOKEN` ou `GH_TOKEN` estiver configurado no ambiente.
+
+Sem token configurado, o script ainda gera o pacote e publica a tag, deixando apenas a criacao do Release para ser concluida manualmente no GitHub.
+
 ## Como registrar uma venda (passo a passo)
 
 1. Abra o PDV.
