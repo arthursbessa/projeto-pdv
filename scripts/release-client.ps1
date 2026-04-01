@@ -81,7 +81,21 @@ function Remove-ExistingTag {
     }
 }
 
-function Publish-ClientPackage {
+function Test-GitTagExists {
+    param(
+        [string]$RepoRoot,
+        [string]$TagName
+    )
+
+    $existingLocal = git -C $RepoRoot tag --list $TagName
+    if ($LASTEXITCODE -ne 0) {
+        throw "Nao foi possivel consultar as tags locais."
+    }
+
+    return -not [string]::IsNullOrWhiteSpace(($existingLocal | Out-String))
+}
+
+function Get-OrCreateClientPackage {
     param(
         [string]$RepoRoot,
         [string]$Version,
@@ -95,12 +109,17 @@ function Publish-ClientPackage {
     $packageFolder = Join-Path $RepoRoot (Join-Path $OutputRoot $Version)
     $zipPath = Join-Path $RepoRoot (Join-Path $OutputRoot "$PackagePrefix-$Version.zip")
 
-    if (Test-Path $packageFolder) {
-        Remove-Item -LiteralPath $packageFolder -Recurse -Force
+    if (Test-Path $zipPath) {
+        Write-Host "Pacote existente encontrado para a versao $Version. Reaproveitando o arquivo atual." -ForegroundColor Yellow
+        return @{
+            PackageFolder = $packageFolder
+            ZipPath = $zipPath
+            ReusedExisting = $true
+        }
     }
 
-    if (Test-Path $zipPath) {
-        Remove-Item -LiteralPath $zipPath -Force
+    if (Test-Path $packageFolder) {
+        Remove-Item -LiteralPath $packageFolder -Recurse -Force
     }
 
     New-Item -ItemType Directory -Path $packageFolder -Force | Out-Null
@@ -139,6 +158,7 @@ function Publish-ClientPackage {
     return @{
         PackageFolder = $packageFolder
         ZipPath = $zipPath
+        ReusedExisting = $false
     }
 }
 
@@ -227,7 +247,7 @@ if (-not $AllowDirty) {
     Assert-CleanWorktree -RepoRoot $repoRoot
 }
 
-if (-not $SkipGit) {
+if (-not $SkipGit -and -not (Test-GitTagExists -RepoRoot $repoRoot -TagName $Version)) {
     Remove-ExistingTag -RepoRoot $repoRoot -TagName $Version
 }
 
@@ -240,7 +260,7 @@ if (-not $SkipTests) {
 }
 
 Write-Step "Gerando pacote do cliente"
-$package = Publish-ClientPackage `
+$package = Get-OrCreateClientPackage `
     -RepoRoot $repoRoot `
     -Version $Version `
     -Runtime $Runtime `
@@ -249,8 +269,14 @@ $package = Publish-ClientPackage `
     -PackagePrefix $PackagePrefix
 
 if (-not $SkipGit) {
-    Write-Step "Criando tag e enviando para o GitHub"
-    New-GitTagAndPush -RepoRoot $repoRoot -Version $Version -BranchName $branchName
+    if (Test-GitTagExists -RepoRoot $repoRoot -TagName $Version) {
+        Write-Step "Tag ja existente"
+        Write-Host "A tag $Version ja existe. O script vai reutilizar essa tag e seguir para a etapa de release." -ForegroundColor Yellow
+    }
+    else {
+        Write-Step "Criando tag e enviando para o GitHub"
+        New-GitTagAndPush -RepoRoot $repoRoot -Version $Version -BranchName $branchName
+    }
 }
 
 $releaseUrl = $null
