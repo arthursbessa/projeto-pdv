@@ -54,7 +54,9 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     public string LastClosedCashBalance => MoneyFormatter.FormatFromCents(LastClosedCashBalanceCents);
     public int CurrentCashBalanceCents { get => _currentCashBalanceCents; private set => SetField(ref _currentCashBalanceCents, value); }
     public string CurrentCashBalance => MoneyFormatter.FormatFromCents(CurrentCashBalanceCents);
-    public string CashStatus => _session.OpenCashRegister is null ? "Caixa fechado" : $"Caixa aberto em {_session.OpenCashRegister.BusinessDate}";
+    public string CashStatus => _session.OpenCashRegister is null
+        ? "Caixa fechado"
+        : $"Caixa aberto em {_session.OpenCashRegister.OpenedAt.ToLocalTime():dd/MM/yyyy HH:mm:ss}";
     public string VersionLabel => _runtimeInfo.VersionLabel;
     public ObservableCollection<IntegrationStatusItemViewModel> IntegrationStatuses { get; } = [];
 
