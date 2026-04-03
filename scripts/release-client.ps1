@@ -193,6 +193,8 @@ function New-ClientPackage {
         -c $Configuration `
         -r $Runtime `
         --self-contained true `
+        -p:PublishSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:Version=$numericVersion `
         -p:AssemblyVersion=$numericVersion `
         -p:FileVersion=$numericVersion `

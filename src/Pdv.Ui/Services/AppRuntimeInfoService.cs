@@ -7,7 +7,17 @@ public sealed class AppRuntimeInfoService
 {
     public AppRuntimeInfoService()
     {
-        ExecutablePath = Environment.ProcessPath ?? Assembly.GetEntryAssembly()?.Location ?? string.Empty;
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(processPath))
+        {
+            ExecutablePath = processPath;
+        }
+        else
+        {
+            var entryAssemblyName = Assembly.GetEntryAssembly()?.GetName().Name ?? "Pdv.Ui";
+            ExecutablePath = Path.Combine(AppContext.BaseDirectory, $"{entryAssemblyName}.exe");
+        }
+
         InstallDirectory = Path.GetDirectoryName(ExecutablePath) ?? AppContext.BaseDirectory;
 #if DEBUG
         IsDevelopment = true;

@@ -194,6 +194,17 @@ function Download-File {
     }
 }
 
+function Resolve-ExtractedContentRoot {
+    param([string]$ExtractDir)
+
+    $entries = @(Get-ChildItem -LiteralPath $ExtractDir -Force)
+    if ($entries.Count -eq 1 -and $entries[0].PSIsContainer) {
+        return $entries[0].FullName
+    }
+
+    return $ExtractDir
+}
+
 function Copy-FolderContent {
     param(
         [string]$Source,
@@ -235,6 +246,7 @@ try {
 
     Write-Step "Extraindo arquivos"
     Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
+    $contentRoot = Resolve-ExtractedContentRoot -ExtractDir $extractDir
 
     Write-Step "Preparando pasta do sistema"
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
@@ -249,7 +261,7 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $InstallDir "logs") -Force | Out-Null
 
     Write-Step "Copiando arquivos para o cliente"
-    Copy-FolderContent -Source $extractDir -Destination $InstallDir
+    Copy-FolderContent -Source $contentRoot -Destination $InstallDir
 
     $exePath = Join-Path $InstallDir "Pdv.Ui.exe"
     if (-not (Test-Path $exePath)) {

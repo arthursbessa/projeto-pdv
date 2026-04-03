@@ -268,12 +268,24 @@ public sealed class GitHubReleaseUpdateService
             }
         }
 
+        function Resolve-ExtractedContentRoot {
+            param([string]$ExtractDir)
+
+            $entries = @(Get-ChildItem -LiteralPath $ExtractDir -Force)
+            if ($entries.Count -eq 1 -and $entries[0].PSIsContainer) {
+                return $entries[0].FullName
+            }
+
+            return $ExtractDir
+        }
+
         Wait-Process -Id $ProcessId -ErrorAction SilentlyContinue
 
         $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) ("pdv-update-" + [guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
 
         Expand-Archive -LiteralPath $ZipPath -DestinationPath $extractDir -Force
+        $contentRoot = Resolve-ExtractedContentRoot -ExtractDir $extractDir
 
         Get-ChildItem -LiteralPath $InstallDir -Force | ForEach-Object {
             if ($_.Name -in @("logs", "updates", "appsettings.json", "appsettings.local.json")) {
@@ -284,10 +296,15 @@ public sealed class GitHubReleaseUpdateService
         }
 
         New-Item -ItemType Directory -Path (Join-Path $InstallDir "logs") -Force | Out-Null
-        Copy-FolderContent -Source $extractDir -Destination $InstallDir
+        Copy-FolderContent -Source $contentRoot -Destination $InstallDir
+
+        $newExePath = Join-Path $InstallDir "Pdv.Ui.exe"
+        if (-not (Test-Path $newExePath)) {
+            throw "Atualizacao concluida sem localizar o executavel em '$newExePath'."
+        }
 
         Remove-Item -LiteralPath $extractDir -Recurse -Force -ErrorAction SilentlyContinue
 
-        Start-Process -FilePath $ExePath
+        Start-Process -FilePath $newExePath
         """;
 }
