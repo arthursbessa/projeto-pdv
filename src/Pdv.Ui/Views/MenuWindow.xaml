@@ -31,9 +31,14 @@
                         <TextBlock Text="{Binding Username, StringFormat=Operador: {0}}" Foreground="#93C5FD" FontSize="16"/>
                     </StackPanel>
                 </StackPanel>
-                <Border DockPanel.Dock="Right" Background="#1E293B" CornerRadius="10" Padding="16,8" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding CashStatus}" Foreground="#FDE68A" FontSize="18" FontWeight="SemiBold"/>
-                </Border>
+                <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <Border Background="#1E293B" CornerRadius="10" Padding="16,8" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding CashStatus}" Foreground="#FDE68A" FontSize="18" FontWeight="SemiBold"/>
+                    </Border>
+                    <Border Background="#0F2C59" CornerRadius="999" Padding="12,4" Margin="0,10,0,0" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding VersionLabel}" Foreground="#BFDBFE" FontWeight="SemiBold"/>
+                    </Border>
+                </StackPanel>
             </DockPanel>
         </Border>
 

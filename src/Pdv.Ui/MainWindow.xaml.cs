@@ -43,7 +43,13 @@ public partial class MainWindow : Window
     {
         if (DataContext is MainViewModel vm)
         {
-            await vm.AddBarcodeAsync();
+            var barcode = vm.BarcodeInput?.Trim() ?? string.Empty;
+            var added = await vm.AddBarcodeAsync();
+            if (!added && !string.IsNullOrWhiteSpace(barcode))
+            {
+                await OpenProductLookupAsync(barcode);
+                return;
+            }
         }
 
         FocusBarcode();
@@ -56,7 +62,7 @@ public partial class MainWindow : Window
 
     private async void SearchProduct_Click(object sender, RoutedEventArgs e)
     {
-        await OpenProductLookupAsync();
+        await OpenProductLookupAsync(BarcodeTextBox.Text);
     }
 
     private async void SearchCustomer_Click(object sender, RoutedEventArgs e)
@@ -89,17 +95,23 @@ public partial class MainWindow : Window
         FocusBarcode();
     }
 
-    private async Task OpenProductLookupAsync()
+    private async Task OpenProductLookupAsync(string? initialQuery = null)
     {
         if (DataContext is not MainViewModel vm)
         {
             return;
         }
 
+        var lookupViewModel = App.Services.GetRequiredService<ProductLookupViewModel>();
+        if (!string.IsNullOrWhiteSpace(initialQuery))
+        {
+            lookupViewModel.Query = initialQuery.Trim();
+        }
+
         var lookup = new ProductLookupWindow
         {
             Owner = this,
-            DataContext = App.Services.GetRequiredService<ProductLookupViewModel>()
+            DataContext = lookupViewModel
         };
 
         if (lookup.ShowDialog() == true && lookup.SelectedProduct is not null)

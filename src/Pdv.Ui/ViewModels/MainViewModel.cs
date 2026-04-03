@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Windows.Media;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
@@ -23,6 +24,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly SessionContext _session;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
     private readonly IErrorFileLogger _errorLogger;
+    private readonly AppRuntimeInfoService _runtimeInfo;
     private string _barcodeInput = string.Empty;
     private string _statusMessage = "PDV iniciado.";
     private SaleItem? _selectedItem;
@@ -36,6 +38,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _lastScannedPriceCents;
     private int _lastScannedQuantity;
     private CustomerRecord? _selectedCustomer;
+    private bool _isOnlineIntegration = true;
 
     public MainViewModel(
         SaleBuilderService saleBuilderService,
@@ -48,7 +51,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         PdvOptions options,
         SessionContext session,
         IStoreSettingsRepository storeSettingsRepository,
-        IErrorFileLogger errorLogger)
+        IErrorFileLogger errorLogger,
+        AppRuntimeInfoService runtimeInfo)
     {
         _saleBuilderService = saleBuilderService;
         _salesRepository = salesRepository;
@@ -60,6 +64,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _session = session;
         _storeSettingsRepository = storeSettingsRepository;
         _errorLogger = errorLogger;
+        _runtimeInfo = runtimeInfo;
 
         DatabaseRelativePath = $"./{options.DatabaseRelativePath.Replace('\\', '/')}";
         DatabaseFullPath = options.DatabaseFullPath;
@@ -90,7 +95,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetField(ref _isBusy, value);
     }
 
-    public string OfflineStatus => "Integracao automatica ativa";
+    public bool IsOnlineIntegration
+    {
+        get => _isOnlineIntegration;
+        private set
+        {
+            if (SetField(ref _isOnlineIntegration, value))
+            {
+                OnPropertyChanged(nameof(IntegrationStatusText));
+                OnPropertyChanged(nameof(IntegrationStatusBrush));
+            }
+        }
+    }
+
+    public string IntegrationStatusText => IsOnlineIntegration ? "Integracao ONLINE" : "Integracao LOCAL";
+    public Brush IntegrationStatusBrush => IsOnlineIntegration
+        ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
+        : new SolidColorBrush(Color.FromRgb(185, 28, 28));
+    public string VersionLabel => _runtimeInfo.VersionLabel;
 
     public string StoreName
     {
@@ -149,6 +171,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(SelectedCustomerDisplay));
                 OnPropertyChanged(nameof(SelectedCustomerHint));
+                OnPropertyChanged(nameof(ReceiptCaption));
                 CancelSaleCommand.RaiseCanExecuteChanged();
             }
         }
@@ -181,15 +204,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedItem, value))
             {
                 RemoveSelectedCommand.RaiseCanExecuteChanged();
+                NotifySelectionMetrics();
             }
         }
     }
+
+    public string SelectedItemUnitPriceFormatted => SelectedItem is null
+        ? LastScannedPriceFormatted
+        : MoneyFormatter.FormatFromCents(SelectedItem.PriceCents);
+
+    public string SelectedItemQuantityFormatted => SelectedItem is null
+        ? ItemCount.ToString("N0")
+        : SelectedItem.Quantity.ToString("N0");
+
+    public string DiscountFormatted => MoneyFormatter.FormatFromCents(0);
+    public string ItemCountFormatted => ItemCount.ToString("N0");
+
+    public string ReceiptCaption => SelectedCustomer is null
+        ? "CUPOM FISCAL"
+        : $"CUPOM FISCAL  |  {SelectedCustomer.Name.ToUpperInvariant()}";
 
     public async Task LoadStoreSettingsAsync()
     {
         var settings = await _storeSettingsRepository.GetCurrentAsync();
         if (settings is null)
         {
+            IsOnlineIntegration = false;
             return;
         }
 
@@ -197,6 +237,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StoreCnpj = settings.Cnpj;
         StoreAddress = settings.Address;
         StoreLogoPath = settings.LogoLocalPath;
+        IsOnlineIntegration = true;
     }
 
     public async Task RefreshCatalogAsync()
@@ -224,11 +265,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
 
+            IsOnlineIntegration = true;
             StatusMessage = $"Catalogo sincronizado: {remoteProducts.Count} item(ns).";
         }
         catch (Exception ex)
         {
             _errorLogger.LogError("Falha ao atualizar catalogo", ex);
+            IsOnlineIntegration = false;
             StatusMessage = "Nao foi possivel atualizar o catalogo agora.";
         }
         finally
@@ -250,11 +293,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             StatusMessage = "Integrando vendas pendentes...";
             var sent = await _syncService.RunOnceAsync();
             var pending = await _outboxRepository.GetPendingCountAsync();
+            IsOnlineIntegration = true;
             StatusMessage = $"Integracao concluida. Enviadas: {sent}. Pendentes: {pending}.";
         }
         catch (Exception ex)
         {
             _errorLogger.LogError("Falha na integracao manual de vendas", ex);
+            IsOnlineIntegration = false;
             StatusMessage = "Nao foi possivel integrar as vendas agora.";
         }
         finally
@@ -263,19 +308,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public async Task AddBarcodeAsync()
+    public async Task<bool> AddBarcodeAsync()
     {
         if (_session.OpenCashRegister is null)
         {
             StatusMessage = "Abra o caixa para iniciar vendas.";
-            return;
+            return false;
         }
 
         BarcodeInput = BarcodeInput.Trim();
         if (string.IsNullOrWhiteSpace(BarcodeInput))
         {
             StatusMessage = "Informe um codigo de barras para adicionar.";
-            return;
+            return false;
         }
 
         var barcode = BarcodeInput;
@@ -285,8 +330,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             System.Media.SystemSounds.Beep.Play();
             StatusMessage = result.Error ?? "Falha ao adicionar item.";
-            BarcodeInput = string.Empty;
-            return;
+            return false;
         }
 
         ReplaceItems(result.Items);
@@ -298,6 +342,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         BarcodeInput = string.Empty;
         StatusMessage = "Item adicionado a venda.";
+        return true;
     }
 
     public async Task<bool> AddProductByIdAsync(string productId)
@@ -554,6 +599,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LastScannedQuantity = item.Quantity;
         OnPropertyChanged(nameof(LastScannedPriceFormatted));
         OnPropertyChanged(nameof(LastScannedQuantityText));
+        OnPropertyChanged(nameof(SelectedItemUnitPriceFormatted));
+        OnPropertyChanged(nameof(SelectedItemQuantityFormatted));
     }
 
     private void NotifyTotals()
@@ -561,7 +608,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalCents));
         OnPropertyChanged(nameof(TotalFormatted));
         OnPropertyChanged(nameof(ItemCount));
+        OnPropertyChanged(nameof(ItemCountFormatted));
+        OnPropertyChanged(nameof(SelectedItemQuantityFormatted));
         CancelSaleCommand.RaiseCanExecuteChanged();
+    }
+
+    private void NotifySelectionMetrics()
+    {
+        OnPropertyChanged(nameof(SelectedItemUnitPriceFormatted));
+        OnPropertyChanged(nameof(SelectedItemQuantityFormatted));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -1,10 +1,9 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$Version,
+    [string]$Version = "",
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
-    [string]$OutputRoot = "publish",
-    [string]$PackagePrefix = "PDV-Cliente",
+    [string]$OutputRoot = "",
+    [string]$PackagePrefix = "PDV-Client",
     [switch]$SkipTests,
     [switch]$SkipGit,
     [switch]$SkipRelease,
@@ -12,6 +11,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Configuracao para execucao por clique duplo
+# Se quiser, preencha aqui e execute pelo arquivo .cmd sem passar nada no terminal.
+$DefaultVersion = ""
+$DefaultRuntime = "win-x64"
+$DefaultConfiguration = "Release"
+$DefaultOutputRoot = ""
 
 function Write-Step {
     param([string]$Message)
@@ -49,7 +55,6 @@ function Get-OriginRepository {
         return @{
             Owner = $matches[1]
             Name = $matches[2]
-            Url = $originUrl
         }
     }
 
@@ -69,18 +74,6 @@ function Assert-CleanWorktree {
     }
 }
 
-function Remove-ExistingTag {
-    param(
-        [string]$RepoRoot,
-        [string]$TagName
-    )
-
-    $existingLocal = git -C $RepoRoot tag --list $TagName
-    if (-not [string]::IsNullOrWhiteSpace(($existingLocal | Out-String))) {
-        throw "A tag '$TagName' ja existe localmente."
-    }
-}
-
 function Test-GitTagExists {
     param(
         [string]$RepoRoot,
@@ -95,7 +88,79 @@ function Test-GitTagExists {
     return -not [string]::IsNullOrWhiteSpace(($existingLocal | Out-String))
 }
 
-function Get-OrCreateClientPackage {
+function Resolve-OutputRoot {
+    param(
+        [string]$RepoRoot,
+        [string]$ConfiguredOutputRoot
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ConfiguredOutputRoot)) {
+        return Join-Path $env:USERPROFILE "Documents\PDV-Client"
+    }
+
+    if ([System.IO.Path]::IsPathRooted($ConfiguredOutputRoot)) {
+        return $ConfiguredOutputRoot
+    }
+
+    return Join-Path $RepoRoot $ConfiguredOutputRoot
+}
+
+function Convert-ToNumericVersion {
+    param([string]$VersionTag)
+
+    $clean = $VersionTag.Trim()
+    if ($clean.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $clean = $clean.Substring(1)
+    }
+
+    $clean = ($clean -split '[\+\-]')[0]
+    $parts = $clean.Split('.', [System.StringSplitOptions]::RemoveEmptyEntries)
+    if ($parts.Count -eq 0 -or $parts.Count -gt 4) {
+        throw "A versao '$VersionTag' nao esta em um formato suportado."
+    }
+
+    foreach ($part in $parts) {
+        if ($part -notmatch '^\d+$') {
+            throw "A versao '$VersionTag' precisa conter apenas partes numericas separadas por ponto."
+        }
+    }
+
+    while ($parts.Count -lt 4) {
+        $parts += "0"
+    }
+
+    return ($parts -join '.')
+}
+
+function Resolve-InteractiveParameters {
+    if ([string]::IsNullOrWhiteSpace($script:Version)) {
+        if (-not [string]::IsNullOrWhiteSpace($DefaultVersion)) {
+            $script:Version = $DefaultVersion
+        }
+        else {
+            $typedVersion = Read-Host "Informe a versao da release (ex: v1.1.0)"
+            $script:Version = $typedVersion
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($script:Runtime) -and -not [string]::IsNullOrWhiteSpace($DefaultRuntime)) {
+        $script:Runtime = $DefaultRuntime
+    }
+
+    if ([string]::IsNullOrWhiteSpace($script:Configuration) -and -not [string]::IsNullOrWhiteSpace($DefaultConfiguration)) {
+        $script:Configuration = $DefaultConfiguration
+    }
+
+    if ([string]::IsNullOrWhiteSpace($script:OutputRoot) -and -not [string]::IsNullOrWhiteSpace($DefaultOutputRoot)) {
+        $script:OutputRoot = $DefaultOutputRoot
+    }
+
+    if ([string]::IsNullOrWhiteSpace($script:Version)) {
+        throw "A versao da release nao foi informada."
+    }
+}
+
+function New-ClientPackage {
     param(
         [string]$RepoRoot,
         [string]$Version,
@@ -106,51 +171,53 @@ function Get-OrCreateClientPackage {
     )
 
     $projectPath = Join-Path $RepoRoot "src\Pdv.Ui\Pdv.Ui.csproj"
-    $packageFolder = Join-Path $RepoRoot (Join-Path $OutputRoot $Version)
-    $zipPath = Join-Path $RepoRoot (Join-Path $OutputRoot "$PackagePrefix-$Version.zip")
+    $resolvedOutputRoot = Resolve-OutputRoot -RepoRoot $RepoRoot -ConfiguredOutputRoot $OutputRoot
+    $packageFolder = Join-Path $resolvedOutputRoot "PDV-Client"
+    $zipPath = Join-Path $resolvedOutputRoot "$PackagePrefix-$Version.zip"
 
-    if (Test-Path $zipPath) {
-        Write-Host "Pacote existente encontrado para a versao $Version. Reaproveitando o arquivo atual." -ForegroundColor Yellow
-        return @{
-            PackageFolder = $packageFolder
-            ZipPath = $zipPath
-            ReusedExisting = $true
-        }
-    }
+    New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
     if (Test-Path $packageFolder) {
         Remove-Item -LiteralPath $packageFolder -Recurse -Force
     }
 
+    if (Test-Path $zipPath) {
+        Remove-Item -LiteralPath $zipPath -Force
+    }
+
     New-Item -ItemType Directory -Path $packageFolder -Force | Out-Null
+
+    $numericVersion = Convert-ToNumericVersion -VersionTag $Version
 
     dotnet publish $projectPath `
         -c $Configuration `
         -r $Runtime `
         --self-contained true `
-        -p:PublishSingleFile=true `
-        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -p:Version=$numericVersion `
+        -p:AssemblyVersion=$numericVersion `
+        -p:FileVersion=$numericVersion `
+        -p:InformationalVersion=$Version `
         -o $packageFolder
 
+    if ($LASTEXITCODE -ne 0) {
+        throw "Falha ao publicar o pacote do cliente."
+    }
+
     Get-ChildItem -Path $packageFolder -Filter "*.pdb" -File -ErrorAction SilentlyContinue | Remove-Item -Force
+    Set-Content -Path (Join-Path $packageFolder "version.txt") -Value $Version -Encoding UTF8
 
     $readmePath = Join-Path $packageFolder "LEIA-ME-CLIENTE.txt"
     @(
-        "PDV Desktop - $Version"
-        ""
-        "Arquivos:"
-        "- Pdv.Ui.exe"
-        "- appsettings.json"
-        ""
-        "Uso:"
-        "1. Extraia os arquivos em uma pasta local."
-        "2. Execute Pdv.Ui.exe."
-        "3. As pastas 'data' e 'logs' serao criadas automaticamente."
-        ""
-        "Observacoes:"
-        "- Mantenha o appsettings.json na mesma pasta do executavel."
-        "- O banco local sera criado em .\data\pdv-local.db."
-        "- Os logs de erro serao gravados em .\logs\errors-AAAAmmdd.txt."
+        "PDV Desktop - $Version",
+        "",
+        "Este pacote representa a release publicada no GitHub.",
+        "A implantacao inicial do cliente deve ser feita com o script scripts\\install-client-latest.ps1.",
+        "",
+        "Arquivos importantes:",
+        "- Pdv.Ui.exe",
+        "- bibliotecas e arquivos de suporte",
+        "- appsettings.json",
+        "- version.txt"
     ) | Set-Content -Path $readmePath -Encoding UTF8
 
     Compress-Archive -Path (Join-Path $packageFolder "*") -DestinationPath $zipPath
@@ -158,7 +225,7 @@ function Get-OrCreateClientPackage {
     return @{
         PackageFolder = $packageFolder
         ZipPath = $zipPath
-        ReusedExisting = $false
+        OutputRoot = $resolvedOutputRoot
     }
 }
 
@@ -251,35 +318,15 @@ function Ensure-GitHubRelease {
         generate_release_notes = $true
     } | ConvertTo-Json
 
-    try {
-        return Invoke-RestMethod `
-            -Method Post `
-            -Uri "https://api.github.com/repos/$($Repository.Owner)/$($Repository.Name)/releases" `
-            -Headers $Headers `
-            -Body $releaseBody `
-            -ContentType "application/json"
-    }
-    catch {
-        $responseBody = $null
-        if ($_.Exception.Response) {
-            try {
-                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-                $responseBody = $reader.ReadToEnd()
-            }
-            catch {
-                $responseBody = $null
-            }
-        }
-
-        if ($responseBody -and $responseBody -match 'already_exists') {
-            return Get-GitHubReleaseByTag -Repository $Repository -Version $Version -Headers $Headers
-        }
-
-        throw
-    }
+    return Invoke-RestMethod `
+        -Method Post `
+        -Uri "https://api.github.com/repos/$($Repository.Owner)/$($Repository.Name)/releases" `
+        -Headers $Headers `
+        -Body $releaseBody `
+        -ContentType "application/json"
 }
 
-function New-GitHubRelease {
+function Publish-GitHubRelease {
     param(
         [hashtable]$Repository,
         [string]$Version,
@@ -325,7 +372,7 @@ function New-GitHubRelease {
             "User-Agent" = "projeto-pdv-release-script"
             "Content-Type" = "application/zip"
         } `
-        -InFile $ZipPath
+        -InFile $ZipPath | Out-Null
 
     return $release.html_url
 }
@@ -334,14 +381,12 @@ $repoRoot = Get-RepositoryRoot
 $branchName = Get-CurrentBranch
 $repository = Get-OriginRepository
 
+Resolve-InteractiveParameters
+
 if (-not $AllowDirty) {
     Write-Step "Validando estado do Git"
     Assert-CleanWorktree -RepoRoot $repoRoot
 }
-
-    if (-not $SkipGit -and -not (Test-GitTagExists -RepoRoot $repoRoot -TagName $Version)) {
-        Remove-ExistingTag -RepoRoot $repoRoot -TagName $Version
-    }
 
 if (-not $SkipTests) {
     Write-Step "Executando testes"
@@ -351,8 +396,8 @@ if (-not $SkipTests) {
     }
 }
 
-Write-Step "Gerando pacote do cliente"
-$package = Get-OrCreateClientPackage `
+Write-Step "Gerando pacote da release"
+$package = New-ClientPackage `
     -RepoRoot $repoRoot `
     -Version $Version `
     -Runtime $Runtime `
@@ -373,12 +418,12 @@ if (-not $SkipGit) {
 
 $releaseUrl = $null
 if (-not $SkipRelease) {
-    Write-Step "Criando Release no GitHub"
-    $releaseUrl = New-GitHubRelease -Repository $repository -Version $Version -ZipPath $package.ZipPath
+    Write-Step "Publicando release no GitHub"
+    $releaseUrl = Publish-GitHubRelease -Repository $repository -Version $Version -ZipPath $package.ZipPath
 }
 
 Write-Host ""
-Write-Host "Release preparado com sucesso." -ForegroundColor Green
+Write-Host "Release preparada com sucesso." -ForegroundColor Green
 Write-Host "Versao:        $Version"
 Write-Host "Pacote:        $($package.ZipPath)"
 Write-Host "Pasta:         $($package.PackageFolder)"

@@ -107,8 +107,10 @@ public sealed class InfrastructureSchemaTests
         });
 
         var product = (await productRepository.FindByBarcodeAsync("789000000002"))!;
+        var createdAt = new DateTimeOffset(2026, 04, 01, 12, 00, 00, TimeSpan.Zero);
         var sale = new Sale
         {
+            CreatedAt = createdAt,
             PaymentMethod = PaymentMethod.Cash,
             ReceivedAmountCents = 2000,
             ChangeAmountCents = 800,
@@ -126,7 +128,7 @@ public sealed class InfrastructureSchemaTests
 
         await salesRepository.SaveSaleWithOutboxAsync(sale, "{}");
 
-        var history = await salesRepository.GetHistoryAsync(DateTime.Today);
+        var history = await salesRepository.GetHistoryAsync(createdAt.DateTime);
         var loadedSale = await salesRepository.FindByIdAsync(sale.SaleId);
 
         Assert.Single(history);

@@ -17,6 +17,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private readonly IOutboxRepository _outboxRepository;
     private readonly SyncService _syncService;
     private readonly IErrorFileLogger _errorLogger;
+    private readonly AppRuntimeInfoService _runtimeInfo;
     private string _statusMessage = "Gerencie seu caixa e modulos.";
     private bool _isBusy;
     private string _storeName = "Minha Loja";
@@ -31,7 +32,8 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         IStoreSettingsRepository storeSettingsRepository,
         IOutboxRepository outboxRepository,
         SyncService syncService,
-        IErrorFileLogger errorLogger)
+        IErrorFileLogger errorLogger,
+        AppRuntimeInfoService runtimeInfo)
     {
         _session = session;
         _cashRegisters = cashRegisters;
@@ -40,6 +42,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         _outboxRepository = outboxRepository;
         _syncService = syncService;
         _errorLogger = errorLogger;
+        _runtimeInfo = runtimeInfo;
     }
 
     public string Username => _session.CurrentUser?.FullName ?? "-";
@@ -52,6 +55,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     public int CurrentCashBalanceCents { get => _currentCashBalanceCents; private set => SetField(ref _currentCashBalanceCents, value); }
     public string CurrentCashBalance => MoneyFormatter.FormatFromCents(CurrentCashBalanceCents);
     public string CashStatus => _session.OpenCashRegister is null ? "Caixa fechado" : $"Caixa aberto em {_session.OpenCashRegister.BusinessDate}";
+    public string VersionLabel => _runtimeInfo.VersionLabel;
     public ObservableCollection<IntegrationStatusItemViewModel> IntegrationStatuses { get; } = [];
 
     public async Task LoadAsync()

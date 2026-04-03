@@ -16,6 +16,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private readonly SessionContext _session;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
     private readonly IErrorFileLogger _errorLogger;
+    private readonly AppRuntimeInfoService _runtimeInfo;
     private string _username = string.Empty;
     private string _password = string.Empty;
     private string _statusMessage = "Informe as credenciais do operador.";
@@ -32,7 +33,8 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         IStoreSettingsApiClient storeSettingsApiClient,
         SessionContext session,
         IStoreSettingsRepository storeSettingsRepository,
-        IErrorFileLogger errorLogger)
+        IErrorFileLogger errorLogger,
+        AppRuntimeInfoService runtimeInfo)
     {
         _authApiClient = authApiClient;
         _cashRegisters = cashRegisters;
@@ -41,6 +43,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         _session = session;
         _storeSettingsRepository = storeSettingsRepository;
         _errorLogger = errorLogger;
+        _runtimeInfo = runtimeInfo;
 
         _ = LoadStoreInfoAsync();
     }
@@ -53,6 +56,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     public string StoreDocument { get => _storeDocument; private set => SetField(ref _storeDocument, value); }
     public string StoreAddress { get => _storeAddress; private set => SetField(ref _storeAddress, value); }
     public string StoreLogoPath { get => _storeLogoPath; private set => SetField(ref _storeLogoPath, value); }
+    public string VersionLabel => _runtimeInfo.VersionLabel;
 
     public async Task<bool> LoginAsync()
     {

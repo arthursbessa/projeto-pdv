@@ -11,12 +11,18 @@ public sealed class HttpStoreSettingsApiClient : IStoreSettingsApiClient
     private readonly HttpClient _httpClient;
     private readonly PdvOptions _options;
     private readonly IErrorLogger _errorLogger;
+    private readonly AppStoragePaths _storagePaths;
 
-    public HttpStoreSettingsApiClient(HttpClient httpClient, PdvOptions options, IErrorLogger errorLogger)
+    public HttpStoreSettingsApiClient(
+        HttpClient httpClient,
+        PdvOptions options,
+        IErrorLogger errorLogger,
+        AppStoragePaths storagePaths)
     {
         _httpClient = httpClient;
         _options = options;
         _errorLogger = errorLogger;
+        _storagePaths = storagePaths;
     }
 
     public async Task<StoreSettings?> GetSettingsAsync(CancellationToken cancellationToken = default)
@@ -83,7 +89,7 @@ public sealed class HttpStoreSettingsApiClient : IStoreSettingsApiClient
                 extension = ".png";
             }
 
-            var directory = Path.Combine(AppContext.BaseDirectory, "data", "assets");
+            var directory = _storagePaths.AssetsDirectory;
             Directory.CreateDirectory(directory);
             var fileName = $"store-logo-{DateTime.UtcNow:yyyyMMddHHmmssfff}{extension}";
             var fullPath = Path.Combine(directory, fileName);

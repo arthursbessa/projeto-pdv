@@ -28,21 +28,20 @@ public partial class App : System.Windows.Application
 
         var options = configuration.GetSection("Pdv").Get<PdvOptions>() ?? new PdvOptions();
         var terminalTokenFromEnv = ResolveEnvironmentValue("TOKEN_PDV", "Pdv__TerminalToken");
-        if (!string.IsNullOrWhiteSpace(terminalTokenFromEnv))
-        {
-            options.TerminalToken = terminalTokenFromEnv.Trim();
-        }
+        options.TerminalToken = string.IsNullOrWhiteSpace(terminalTokenFromEnv)
+            ? string.Empty
+            : terminalTokenFromEnv.Trim();
         var supabaseAnonKeyFromEnv = ResolveEnvironmentValue(
             "SUPABASE_ANON_KEY",
             "NEXT_PUBLIC_SUPABASE_ANON_KEY",
             "SUPABASE_KEY",
             "SUPABASE_ANON",
             "Pdv__SupabaseAnonKey");
-        if (!string.IsNullOrWhiteSpace(supabaseAnonKeyFromEnv))
-        {
-            options.SupabaseAnonKey = supabaseAnonKeyFromEnv.Trim();
-        }
-        var fullDbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, options.DatabaseRelativePath));
+        options.SupabaseAnonKey = string.IsNullOrWhiteSpace(supabaseAnonKeyFromEnv)
+            ? string.Empty
+            : supabaseAnonKeyFromEnv.Trim();
+        var storagePaths = new AppStoragePaths();
+        var fullDbPath = storagePaths.ResolveDatabasePath(options.DatabaseRelativePath);
         var dbDirectory = Path.GetDirectoryName(fullDbPath) ?? AppContext.BaseDirectory;
         Directory.CreateDirectory(dbDirectory);
 
@@ -52,6 +51,9 @@ public partial class App : System.Windows.Application
             .AddPdvInfrastructure(options, fullDbPath)
             .AddSingleton<IErrorFileLogger, ErrorFileLogger>()
             .AddSingleton<IErrorLogger>(sp => sp.GetRequiredService<IErrorFileLogger>())
+            .AddSingleton(storagePaths)
+            .AddSingleton<AppRuntimeInfoService>()
+            .AddSingleton<GitHubReleaseUpdateService>()
             .AddSingleton<SessionContext>()
             .AddTransient<MainViewModel>()
             .AddTransient<LoginViewModel>()

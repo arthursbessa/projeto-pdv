@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using Pdv.Application.Configuration;
 
 namespace Pdv.Ui.Services;
 
@@ -8,26 +9,10 @@ public sealed class ErrorFileLogger : IErrorFileLogger
     private readonly string _logDirectory;
     private static readonly object SyncRoot = new();
 
-    public ErrorFileLogger()
+    public ErrorFileLogger(AppStoragePaths storagePaths)
     {
-        _logDirectory = Path.Combine(ResolveProjectRoot(), "logs");
+        _logDirectory = storagePaths.LogsDirectory;
         Directory.CreateDirectory(_logDirectory);
-    }
-
-    private static string ResolveProjectRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "PdvDesktop.sln")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        return AppContext.BaseDirectory;
     }
 
     public void LogError(string context, Exception exception)
