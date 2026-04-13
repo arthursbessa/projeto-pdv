@@ -1,8 +1,8 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
-using Pdv.Application.Domain;
 using Pdv.Ui.Services;
 using Pdv.Ui.ViewModels;
 using Pdv.Ui.Views;
@@ -18,9 +18,10 @@ public partial class MainWindow : Window
         {
             if (DataContext is MainViewModel vm)
             {
-                await vm.LoadStoreSettingsAsync();
+                await vm.LoadAsync();
             }
 
+            SyncSelectionEditors();
             FocusBarcode();
         };
     }
@@ -32,7 +33,7 @@ public partial class MainWindow : Window
 
     private async void BarcodeTextBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter)
+        if (DataContext is MainViewModel vm && vm.MatchesShortcut(e.Key, vm.AddItemShortcutLabel))
         {
             await AddItemFromBarcodeAsync();
             e.Handled = true;
@@ -50,14 +51,17 @@ public partial class MainWindow : Window
                 await OpenProductLookupAsync(barcode);
                 return;
             }
+
+            ItemsDataGrid.Items.Refresh();
+            SyncSelectionEditors();
         }
 
         FocusBarcode();
     }
 
-    private void Finalize_Click(object sender, RoutedEventArgs e)
+    private async void Finalize_Click(object sender, RoutedEventArgs e)
     {
-        OpenFinalizeDialog();
+        await OpenFinalizeDialogAsync();
     }
 
     private async void SearchProduct_Click(object sender, RoutedEventArgs e)
@@ -65,12 +69,7 @@ public partial class MainWindow : Window
         await OpenProductLookupAsync(BarcodeTextBox.Text);
     }
 
-    private async void SearchCustomer_Click(object sender, RoutedEventArgs e)
-    {
-        await OpenCustomerLookupAsync();
-    }
-
-    private void OpenFinalizeDialog()
+    private async Task OpenFinalizeDialogAsync()
     {
         if (DataContext is not MainViewModel vm)
         {
@@ -80,16 +79,14 @@ public partial class MainWindow : Window
         var modal = new FinalizeSaleWindow { Owner = this };
         var result = modal.ShowDialog();
 
-        if (result == true && modal.CompletedSale is not null && modal.ShouldPrintCoupon)
+        if (result == true && modal.CompletedSale is not null && modal.CompletedSale.ReceiptRequested)
         {
-            var printInfo = vm.GetStorePrintInfo();
-            _ = FiscalCouponPrinter.Print(
-                this,
-                modal.CompletedSale,
-                printInfo.StoreName,
-                printInfo.StoreAddress,
-                printInfo.StoreCnpj,
-                printInfo.StoreLogoPath);
+            var printContext = await vm.GetPrintContextAsync();
+            var printed = FiscalCouponPrinter.Print(this, modal.CompletedSale, modal.PrintedTaxId, printContext.StoreSettings, printContext.Settings);
+            if (printed)
+            {
+                await vm.MarkSalePrintedAsync(modal.CompletedSale, modal.PrintedTaxId);
+            }
         }
 
         FocusBarcode();
@@ -118,33 +115,13 @@ public partial class MainWindow : Window
         {
             await vm.AddProductByIdAsync(lookup.SelectedProduct.Id);
             ItemsDataGrid.Items.Refresh();
+            SyncSelectionEditors();
         }
 
         FocusBarcode();
     }
 
-    private async Task OpenCustomerLookupAsync()
-    {
-        if (DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        var lookup = new CustomerLookupWindow
-        {
-            Owner = this,
-            DataContext = App.Services.GetRequiredService<CustomerLookupViewModel>()
-        };
-
-        if (lookup.ShowDialog() == true && lookup.SelectedCustomer is not null)
-        {
-            await vm.SelectCustomerByIdAsync(lookup.SelectedCustomer.Id);
-        }
-
-        FocusBarcode();
-    }
-
-    private void Window_KeyDown(object sender, KeyEventArgs e)
+    private async void Window_KeyDown(object sender, KeyEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
         {
@@ -158,126 +135,134 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.F2)
+        if (vm.MatchesShortcut(e.Key, vm.AddItemShortcutLabel))
         {
-            OpenFinalizeDialog();
+            await AddItemFromBarcodeAsync();
             e.Handled = true;
         }
-        else if (e.Key == Key.F3)
+        else if (vm.MatchesShortcut(e.Key, vm.FinalizeShortcutLabel))
         {
-            _ = OpenProductLookupAsync();
+            await OpenFinalizeDialogAsync();
             e.Handled = true;
         }
-        else if (e.Key == Key.F4)
+        else if (vm.MatchesShortcut(e.Key, vm.SearchProductShortcutLabel))
+        {
+            await OpenProductLookupAsync();
+            e.Handled = true;
+        }
+        else if (vm.MatchesShortcut(e.Key, vm.RemoveItemShortcutLabel))
         {
             vm.RemoveSelectedItem();
+            ItemsDataGrid.Items.Refresh();
+            SyncSelectionEditors();
             FocusBarcode();
             e.Handled = true;
         }
-        else if (e.Key == Key.F6)
-        {
-            OpenQuantityDialog();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.F7)
-        {
-            _ = OpenCustomerLookupAsync();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape)
+        else if (vm.MatchesShortcut(e.Key, vm.CancelSaleShortcutLabel))
         {
             vm.CancelSale();
+            ItemsDataGrid.Items.Refresh();
+            SyncSelectionEditors();
             FocusBarcode();
             e.Handled = true;
         }
     }
 
-    private void ChangeQuantity_Click(object sender, RoutedEventArgs e)
+    private void ItemsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        OpenQuantityDialog();
+        SyncSelectionEditors();
     }
 
-    private void OpenQuantityDialog()
+    private void SelectedQuantityTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || vm.SelectedItem is null)
+        {
+            return;
+        }
+
+        if (SelectedQuantityTextBox.Text == vm.SelectedItem.Quantity.ToString())
+        {
+            return;
+        }
+
+        if (vm.UpdateItemQuantity(vm.SelectedItem, SelectedQuantityTextBox.Text))
+        {
+            ItemsDataGrid.Items.Refresh();
+        }
+
+        SyncSelectionEditors();
+        FocusBarcode();
+    }
+
+    private async void SelectedPriceTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || vm.SelectedItem is null)
+        {
+            return;
+        }
+
+        var currentFormatted = vm.SelectedItem.Price.ToString("0.00", CultureInfo.InvariantCulture);
+        var proposedFormatted = SelectedPriceTextBox.Text.Trim().Replace(',', '.');
+        if (proposedFormatted == currentFormatted)
+        {
+            return;
+        }
+
+        var choice = MessageBox.Show(
+            this,
+            "Deseja atualizar esse novo valor tambem no cadastro do produto?",
+            "Atualizar preco do produto",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        if (choice == MessageBoxResult.Cancel)
+        {
+            SyncSelectionEditors();
+            return;
+        }
+
+        await vm.UpdateItemPriceAsync(vm.SelectedItem, SelectedPriceTextBox.Text, choice == MessageBoxResult.Yes);
+        ItemsDataGrid.Items.Refresh();
+        SyncSelectionEditors();
+        FocusBarcode();
+    }
+
+    private void SelectedQuantityTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SelectedQuantityTextBox_LostFocus(sender, e);
+            e.Handled = true;
+        }
+    }
+
+    private void SelectedPriceTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SelectedPriceTextBox_LostFocus(sender, e);
+            e.Handled = true;
+        }
+    }
+
+    private void SyncSelectionEditors()
     {
         if (DataContext is not MainViewModel vm)
         {
+            SelectedPriceTextBox.Text = string.Empty;
+            SelectedQuantityTextBox.Text = string.Empty;
             return;
         }
 
         if (vm.SelectedItem is null)
         {
-            vm.StatusMessage = "Selecione um item para alterar a quantidade.";
+            SelectedPriceTextBox.Text = vm.SelectedItemUnitPriceFormatted;
+            SelectedQuantityTextBox.Text = vm.SelectedItemQuantityFormatted;
             return;
         }
 
-        var quantityTextBox = new TextBox
-        {
-            Text = vm.SelectedItem.Quantity.ToString(),
-            Margin = new Thickness(0, 10, 0, 0),
-            MinWidth = 220
-        };
-
-        var dialog = new Window
-        {
-            Title = "Quantidade",
-            Owner = this,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ResizeMode = ResizeMode.NoResize,
-            Content = new StackPanel
-            {
-                Margin = new Thickness(20),
-                Children =
-                {
-                    new TextBlock { Text = vm.SelectedItem.Description, FontWeight = FontWeights.SemiBold },
-                    new TextBlock { Text = "Informe a quantidade:", Margin = new Thickness(0, 8, 0, 0) },
-                    quantityTextBox,
-                    new Button { Content = "Confirmar", Width = 110, Margin = new Thickness(0, 12, 0, 0), IsDefault = true, HorizontalAlignment = HorizontalAlignment.Right }
-                }
-            }
-        };
-
-        if (dialog.Content is StackPanel panel && panel.Children[^1] is Button confirm)
-        {
-            confirm.Click += (_, _) =>
-            {
-                if (!vm.UpdateSelectedItemQuantity(quantityTextBox.Text))
-                {
-                    return;
-                }
-
-                dialog.DialogResult = true;
-                dialog.Close();
-            };
-        }
-
-        dialog.ShowDialog();
-        ItemsDataGrid.Items.Refresh();
-        FocusBarcode();
-    }
-
-    private void ItemsDataGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
-    {
-        if (DataContext is not MainViewModel vm || e.Row.Item is not SaleItem item)
-        {
-            return;
-        }
-
-        if (e.Column.DisplayIndex != 2 || e.EditingElement is not TextBox textBox)
-        {
-            return;
-        }
-
-        if (!vm.UpdateItemQuantity(item, textBox.Text))
-        {
-            e.Cancel = true;
-        }
-        else
-        {
-            ItemsDataGrid.Items.Refresh();
-        }
-
-        FocusBarcode();
+        SelectedPriceTextBox.Text = vm.SelectedItem.Price.ToString("N2");
+        SelectedQuantityTextBox.Text = vm.SelectedItem.Quantity.ToString();
     }
 
     private void FocusBarcode()

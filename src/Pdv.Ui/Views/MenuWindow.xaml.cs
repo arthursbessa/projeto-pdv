@@ -59,4 +59,13 @@ public partial class MenuWindow : Window
             DataContext = App.Services.GetRequiredService<SalesHistoryViewModel>()
         }.ShowDialog();
     }
+
+    private void OpenSettings_Click(object sender, RoutedEventArgs e)
+    {
+        new SettingsWindow
+        {
+            Owner = this,
+            DataContext = App.Services.GetRequiredService<SettingsViewModel>()
+        }.ShowDialog();
+    }
 }

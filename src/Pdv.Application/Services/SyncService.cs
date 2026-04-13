@@ -12,6 +12,7 @@ public sealed class SyncService
     private readonly IOutboxRepository _outboxRepository;
     private readonly ISalesApiClient _salesApiClient;
     private readonly IRefundsApiClient _refundsApiClient;
+    private readonly IProductsApiClient _productsApiClient;
     private readonly ISalesRepository _salesRepository;
     private readonly ICashRegisterApiClient _cashRegisterApiClient;
     private readonly ICashRegisterRepository _cashRegisterRepository;
@@ -21,6 +22,7 @@ public sealed class SyncService
         IOutboxRepository outboxRepository,
         ISalesApiClient salesApiClient,
         IRefundsApiClient refundsApiClient,
+        IProductsApiClient productsApiClient,
         ISalesRepository salesRepository,
         ICashRegisterApiClient cashRegisterApiClient,
         ICashRegisterRepository cashRegisterRepository,
@@ -29,6 +31,7 @@ public sealed class SyncService
         _outboxRepository = outboxRepository;
         _salesApiClient = salesApiClient;
         _refundsApiClient = refundsApiClient;
+        _productsApiClient = productsApiClient;
         _salesRepository = salesRepository;
         _cashRegisterApiClient = cashRegisterApiClient;
         _cashRegisterRepository = cashRegisterRepository;
@@ -79,7 +82,9 @@ public sealed class SyncService
         {
             "CashRegisterOpened" => 0,
             "SaleCreated" => 1,
+            "SalePrinted" => 1,
             "SaleRefundCreated" => 1,
+            "ProductUpserted" => 1,
             "CashWithdrawalCreated" => 1,
             "CashRegisterClosed" => 2,
             _ => 3
@@ -93,11 +98,52 @@ public sealed class SyncService
             case "SaleCreated":
                 await SendSaleAsync(outboxEvent.PayloadJson, cancellationToken);
                 break;
+            case "SalePrinted":
+                {
+                    var payloadNode = JsonNode.Parse(outboxEvent.PayloadJson)?.AsObject() ?? [];
+                    if (payloadNode["sale_id"] is null && payloadNode["local_sale_id"] is not null)
+                    {
+                        if (Guid.TryParse(payloadNode["local_sale_id"]!.ToString(), out var localSaleId))
+                        {
+                            var sale = await _salesRepository.FindByIdAsync(localSaleId, cancellationToken);
+                            if (sale is null || string.IsNullOrWhiteSpace(sale.RemoteSaleId))
+                            {
+                                throw new RemoteSessionNotLinkedException(localSaleId.ToString());
+                            }
+
+                            payloadNode["sale_id"] = sale.RemoteSaleId;
+                        }
+                    }
+
+                    payloadNode.Remove("local_sale_id");
+                    await _salesApiClient.MarkPrintedAsync(payloadNode.ToJsonString(), cancellationToken);
+                }
+                break;
             case "SaleRefundCreated":
                 {
                     var payloadNode = JsonNode.Parse(outboxEvent.PayloadJson)?.AsObject() ?? [];
                     payloadNode.Remove("local_refund_id");
                     await _refundsApiClient.RegisterRefundAsync(payloadNode.ToJsonString(), cancellationToken);
+                }
+                break;
+            case "ProductUpserted":
+                {
+                    var payloadNode = JsonNode.Parse(outboxEvent.PayloadJson)?.AsObject() ?? [];
+                    var isNew = payloadNode["is_new"]?.GetValue<bool>() ?? false;
+                    if (payloadNode["product"] is not JsonObject productNode)
+                    {
+                        throw new InvalidOperationException("Payload de produto invalido.");
+                    }
+
+                    var product = ReadProduct(productNode);
+                    if (isNew)
+                    {
+                        await _productsApiClient.CreateAsync(product, cancellationToken);
+                    }
+                    else
+                    {
+                        await _productsApiClient.UpdateAsync(product, cancellationToken);
+                    }
                 }
                 break;
             case "CashWithdrawalCreated":
@@ -179,6 +225,41 @@ public sealed class SyncService
         {
             await _salesRepository.SaveRemoteSaleReferenceAsync(localSaleId.Value, result.RemoteSaleId, result.SaleNumber, cancellationToken);
         }
+    }
+
+    private static ProductAdminItem ReadProduct(JsonObject productNode)
+    {
+        static string ReadString(JsonObject node, string key, string fallback = "")
+            => node[key]?.ToString() ?? fallback;
+
+        static decimal ReadDecimal(JsonObject node, string key)
+            => decimal.TryParse(
+                node[key]?.ToString(),
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var value)
+                ? value
+                : 0m;
+
+        static int ReadInt(JsonObject node, string key)
+            => int.TryParse(node[key]?.ToString(), out var value) ? value : 0;
+
+        static bool ReadBool(JsonObject node, string key, bool fallback = false)
+            => bool.TryParse(node[key]?.ToString(), out var value) ? value : fallback;
+
+        return new ProductAdminItem
+        {
+            Id = ReadString(productNode, "id"),
+            Name = ReadString(productNode, "name"),
+            Sku = ReadString(productNode, "sku"),
+            Barcode = ReadString(productNode, "barcode"),
+            PriceCents = (int)Math.Round(ReadDecimal(productNode, "sale_price") * 100m),
+            CostPriceCents = (int)Math.Round(ReadDecimal(productNode, "cost_price") * 100m),
+            StockQuantity = ReadInt(productNode, "stock_quantity"),
+            MinStock = ReadInt(productNode, "min_stock"),
+            Unit = ReadString(productNode, "unit", "un"),
+            Active = ReadBool(productNode, "is_active", true)
+        };
     }
 
     private async Task<string> ResolveRemoteSessionIdOrThrowAsync(string localSessionId, CancellationToken cancellationToken)

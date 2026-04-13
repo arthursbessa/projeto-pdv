@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using Microsoft.Extensions.DependencyInjection;
 using Pdv.Ui.ViewModels;
 
 namespace Pdv.Ui.Views;
@@ -56,5 +57,43 @@ public partial class ProductLookupWindow : Window
         SelectedProduct = vm.SelectedProduct;
         DialogResult = true;
         Close();
+    }
+
+    private async void CreateProduct_Click(object sender, RoutedEventArgs e)
+    {
+        var vm = App.Services.GetRequiredService<ProductsViewModel>();
+        var window = new ProductsWindow
+        {
+            Owner = this,
+            DataContext = vm
+        };
+
+        window.ShowDialog();
+        if (DataContext is ProductLookupViewModel lookupVm)
+        {
+            await lookupVm.LoadAsync();
+        }
+    }
+
+    private async void EditProduct_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ProductLookupViewModel lookupVm || lookupVm.SelectedProduct is null)
+        {
+            return;
+        }
+
+        var vm = App.Services.GetRequiredService<ProductsViewModel>();
+        await vm.OpenExistingAsync(lookupVm.SelectedProduct.Id);
+        var window = new ProductsWindow
+        {
+            Owner = this,
+            DataContext = vm
+        };
+
+        window.ShowDialog();
+        if (DataContext is ProductLookupViewModel currentLookupVm)
+        {
+            await currentLookupVm.LoadAsync();
+        }
     }
 }

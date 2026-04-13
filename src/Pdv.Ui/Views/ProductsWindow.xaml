@@ -1,7 +1,11 @@
 <Window x:Class="Pdv.Ui.Views.ProductsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Cadastro de Produtos" Height="620" Width="900" WindowStartupLocation="CenterOwner">
+        Title="Cadastro de Produtos"
+        Height="620"
+        Width="980"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -10,22 +14,27 @@
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-            <TextBox Width="300" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBox Width="280" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
             <Button Content="Buscar" Margin="8,0" Padding="12,6" Command="{Binding SearchCommand}"/>
             <Button Content="Novo" Padding="12,6" Command="{Binding NewCommand}"/>
             <Button Content="Salvar" Margin="8,0" Padding="12,6" Command="{Binding SaveCommand}"/>
             <Button Content="Ativar/Desativar" Padding="12,6" Command="{Binding ToggleCommand}"/>
         </StackPanel>
 
-        <DataGrid Grid.Row="1" ItemsSource="{Binding Products}" SelectedItem="{Binding SelectedProduct}" AutoGenerateColumns="False">
+        <DataGrid Grid.Row="1"
+                  ItemsSource="{Binding Products}"
+                  SelectedItem="{Binding SelectedProduct}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Barcode" Binding="{Binding Barcode}" Width="160"/>
-                <DataGridTextColumn Header="Descrição" Binding="{Binding Description}" Width="*"/>
-                <DataGridTextColumn Header="Preço (R$)" Binding="{Binding PriceInput}" Width="120"/>
+                <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="120"/>
+                <DataGridTextColumn Header="Barcode" Binding="{Binding Barcode}" Width="180"/>
+                <DataGridTextColumn Header="Descricao" Binding="{Binding Description}" Width="*"/>
+                <DataGridTextColumn Header="Preco (R$)" Binding="{Binding PriceInput}" Width="130"/>
                 <DataGridCheckBoxColumn Header="Ativo" Binding="{Binding Active}" Width="70"/>
             </DataGrid.Columns>
         </DataGrid>
 
-        <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Margin="0,12,0,0" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Margin="0,12,0,0" FontWeight="SemiBold" Foreground="#334155"/>
     </Grid>
 </Window>

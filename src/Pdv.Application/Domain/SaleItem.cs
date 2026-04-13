@@ -6,7 +6,7 @@ public sealed class SaleItem
     public required string ProductId { get; init; }
     public required string Barcode { get; init; }
     public required string Description { get; init; }
-    public int PriceCents { get; init; }
+    public int PriceCents { get; set; }
     public int RefundedQuantity { get; init; }
     public int Quantity { get; private set; } = 1;
 
@@ -25,5 +25,15 @@ public sealed class SaleItem
         }
 
         Quantity = quantity;
+    }
+
+    public void SetPrice(int priceCents)
+    {
+        if (priceCents < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(priceCents), "Preco deve ser zero ou maior.");
+        }
+
+        PriceCents = priceCents;
     }
 }

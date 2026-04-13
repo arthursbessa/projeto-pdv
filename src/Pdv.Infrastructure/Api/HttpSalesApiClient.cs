@@ -55,4 +55,29 @@ public sealed class HttpSalesApiClient : ISalesApiClient
                 : null
         };
     }
+
+    public async Task MarkPrintedAsync(string payloadJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_options.FunctionsBaseUrl) || string.IsNullOrWhiteSpace(_options.TerminalToken))
+        {
+            throw new InvalidOperationException("Configuracao de integracao de vendas incompleta.");
+        }
+
+        var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-sales-print";
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
+        };
+        PdvApiRequestHeaders.Apply(request, _options);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var exception = new HttpRequestException(
+                $"Falha ao marcar cupom impresso em '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}");
+            _errorLogger.LogError("Falha ao marcar impressao do cupom no PDV", exception);
+            throw exception;
+        }
+    }
 }

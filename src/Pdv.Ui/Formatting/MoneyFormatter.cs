@@ -10,7 +10,13 @@ public static class MoneyFormatter
 
     public static bool TryParseToCents(string? value, out int cents)
     {
-        if (decimal.TryParse(value, Culture, out var parsed) || decimal.TryParse(value, out parsed))
+        var sanitized = (value ?? string.Empty)
+            .Replace("R$", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        if (decimal.TryParse(sanitized, NumberStyles.Currency, Culture, out var parsed)
+            || decimal.TryParse(sanitized, NumberStyles.Any, CultureInfo.InvariantCulture, out parsed)
+            || decimal.TryParse(sanitized, out parsed))
         {
             cents = (int)Math.Round(parsed * 100m, MidpointRounding.AwayFromZero);
             return true;

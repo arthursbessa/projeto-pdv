@@ -50,11 +50,12 @@ public sealed class SyncServiceTests
         var outbox = new FakeOutboxRepository([saleEvent, openEvent]);
         var salesApi = new FakeSalesApiClient();
         var refundsApi = new FakeRefundsApiClient();
+        var productsApi = new FakeProductsApiClient();
         var salesRepository = new FakeSalesRepository();
         var cashRegisterApi = new FakeCashRegisterApiClient();
         var cashRegisterRepository = new FakeCashRegisterRepository();
         var logger = new FakeErrorLogger();
-        var sut = new SyncService(outbox, salesApi, refundsApi, salesRepository, cashRegisterApi, cashRegisterRepository, logger);
+        var sut = new SyncService(outbox, salesApi, refundsApi, productsApi, salesRepository, cashRegisterApi, cashRegisterRepository, logger);
 
         var sent = await sut.RunOnceAsync();
 
@@ -94,11 +95,12 @@ public sealed class SyncServiceTests
         var outbox = new FakeOutboxRepository([saleEvent]);
         var salesApi = new FakeSalesApiClient();
         var refundsApi = new FakeRefundsApiClient();
+        var productsApi = new FakeProductsApiClient();
         var salesRepository = new FakeSalesRepository();
         var cashRegisterApi = new FakeCashRegisterApiClient();
         var cashRegisterRepository = new FakeCashRegisterRepository();
         var logger = new FakeErrorLogger();
-        var sut = new SyncService(outbox, salesApi, refundsApi, salesRepository, cashRegisterApi, cashRegisterRepository, logger);
+        var sut = new SyncService(outbox, salesApi, refundsApi, productsApi, salesRepository, cashRegisterApi, cashRegisterRepository, logger);
 
         var sent = await sut.RunOnceAsync();
 
@@ -128,6 +130,9 @@ public sealed class SyncServiceTests
         public Task<IReadOnlyDictionary<string, int>> GetPendingCountsByTypeAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyDictionary<string, int>>(new Dictionary<string, int>());
 
+        public Task EnqueueAsync(string type, string payloadJson, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
         public Task MarkAsSentAsync(Guid id, DateTimeOffset sentAt, CancellationToken cancellationToken = default)
         {
             MarkedAsSent.Add(id);
@@ -147,6 +152,7 @@ public sealed class SyncServiceTests
     private sealed class FakeSalesApiClient : ISalesApiClient
     {
         public List<string> Payloads { get; } = [];
+        public List<string> PrintedPayloads { get; } = [];
 
         public Task<SaleSyncResult> SendSaleAsync(string payloadJson, CancellationToken cancellationToken = default)
         {
@@ -156,6 +162,12 @@ public sealed class SyncServiceTests
                 RemoteSaleId = "remote-sale-1",
                 SaleNumber = 1042
             });
+        }
+
+        public Task MarkPrintedAsync(string payloadJson, CancellationToken cancellationToken = default)
+        {
+            PrintedPayloads.Add(payloadJson);
+            return Task.CompletedTask;
         }
     }
 
@@ -170,9 +182,22 @@ public sealed class SyncServiceTests
         }
     }
 
+    private sealed class FakeProductsApiClient : IProductsApiClient
+    {
+        public Task<ProductAdminItem> CreateAsync(ProductAdminItem product, CancellationToken cancellationToken = default)
+            => Task.FromResult(product);
+
+        public Task<ProductAdminItem> UpdateAsync(ProductAdminItem product, CancellationToken cancellationToken = default)
+            => Task.FromResult(product);
+
+        public Task UpdatePriceAsync(string productId, int priceCents, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
     private sealed class FakeSalesRepository : ISalesRepository
     {
         public List<(Guid LocalSaleId, string RemoteSaleId, int? SaleNumber)> SavedReferences { get; } = [];
+        public List<(Guid SaleId, DateTimeOffset PrintedAt, string? ReceiptTaxId, string? Payload)> PrintedSales { get; } = [];
 
         public Task SaveSaleWithOutboxAsync(Sale sale, string outboxPayloadJson, string? cashRegisterSessionId = null, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
@@ -186,6 +211,12 @@ public sealed class SyncServiceTests
         public Task SaveRemoteSaleReferenceAsync(Guid localSaleId, string remoteSaleId, int? saleNumber, CancellationToken cancellationToken = default)
         {
             SavedReferences.Add((localSaleId, remoteSaleId, saleNumber));
+            return Task.CompletedTask;
+        }
+
+        public Task MarkAsPrintedAsync(Guid saleId, DateTimeOffset printedAt, string? receiptTaxId, string? outboxPayloadJson = null, CancellationToken cancellationToken = default)
+        {
+            PrintedSales.Add((saleId, printedAt, receiptTaxId, outboxPayloadJson));
             return Task.CompletedTask;
         }
 

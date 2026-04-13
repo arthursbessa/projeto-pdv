@@ -59,9 +59,11 @@ public partial class App : System.Windows.Application
             .AddTransient<LoginViewModel>()
             .AddTransient<MenuViewModel>()
             .AddTransient<ProductLookupViewModel>()
+            .AddTransient<ProductsViewModel>()
             .AddTransient<CustomerLookupViewModel>()
             .AddTransient<CreateCustomerViewModel>()
             .AddTransient<SalesHistoryViewModel>()
+            .AddTransient<SettingsViewModel>()
             .BuildServiceProvider();
 
         var errorLogger = Services.GetRequiredService<IErrorFileLogger>();

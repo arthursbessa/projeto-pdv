@@ -7,6 +7,7 @@ namespace Pdv.Infrastructure.Setup;
 public sealed class DatabaseInitializer
 {
     private readonly SqliteConnectionFactory _connectionFactory;
+
     public DatabaseInitializer(SqliteConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
@@ -30,6 +31,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
+    sku TEXT NULL,
     barcode TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL,
     price_cents INTEGER NOT NULL,
@@ -48,7 +50,6 @@ CREATE TABLE IF NOT EXISTS payment_methods (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
-
 
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -69,6 +70,19 @@ CREATE TABLE IF NOT EXISTS store_settings (
     currency TEXT NOT NULL,
     logo_url TEXT NOT NULL,
     logo_local_path TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pdv_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    default_discount_percent REAL NOT NULL DEFAULT 5,
+    ask_printer_before_print INTEGER NOT NULL DEFAULT 1,
+    preferred_printer_name TEXT NULL,
+    shortcut_add_item TEXT NOT NULL DEFAULT 'Enter',
+    shortcut_finalize_sale TEXT NOT NULL DEFAULT 'F2',
+    shortcut_search_product TEXT NOT NULL DEFAULT 'F3',
+    shortcut_remove_item TEXT NOT NULL DEFAULT 'F4',
+    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Escape',
     updated_at TEXT NOT NULL
 );
 
@@ -124,8 +138,12 @@ CREATE TABLE IF NOT EXISTS sales (
     remote_sale_id TEXT NULL,
     sale_number INTEGER NULL,
     discount_cents INTEGER NOT NULL DEFAULT 0,
+    discount_percent REAL NOT NULL DEFAULT 0,
     surcharge_cents INTEGER NOT NULL DEFAULT 0,
     notes TEXT NULL,
+    receipt_requested INTEGER NOT NULL DEFAULT 0,
+    receipt_tax_id TEXT NULL,
+    printed_at TEXT NULL,
     FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id),
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (operator_id) REFERENCES users(id),
@@ -213,20 +231,6 @@ CREATE INDEX IF NOT EXISTS idx_outbox_next_retry_at ON outbox_events (next_retry
 
     private static async Task EnsureSchemaEvolutionAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        var createWithdrawals = connection.CreateCommand();
-        createWithdrawals.CommandText = @"
-CREATE TABLE IF NOT EXISTS cash_withdrawals (
-    id TEXT PRIMARY KEY,
-    cash_register_session_id TEXT NOT NULL,
-    amount_cents INTEGER NOT NULL,
-    reason TEXT NULL,
-    created_at TEXT NOT NULL,
-    created_by_user_id TEXT NULL,
-    FOREIGN KEY (cash_register_session_id) REFERENCES cash_register_sessions(id),
-    FOREIGN KEY (created_by_user_id) REFERENCES users(id)
-);";
-        await createWithdrawals.ExecuteNonQueryAsync(cancellationToken);
-
         var createStoreSettings = connection.CreateCommand();
         createStoreSettings.CommandText = @"
 CREATE TABLE IF NOT EXISTS store_settings (
@@ -242,6 +246,22 @@ CREATE TABLE IF NOT EXISTS store_settings (
 );";
         await createStoreSettings.ExecuteNonQueryAsync(cancellationToken);
 
+        var createPdvSettings = connection.CreateCommand();
+        createPdvSettings.CommandText = @"
+CREATE TABLE IF NOT EXISTS pdv_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    default_discount_percent REAL NOT NULL DEFAULT 5,
+    ask_printer_before_print INTEGER NOT NULL DEFAULT 1,
+    preferred_printer_name TEXT NULL,
+    shortcut_add_item TEXT NOT NULL DEFAULT 'Enter',
+    shortcut_finalize_sale TEXT NOT NULL DEFAULT 'F2',
+    shortcut_search_product TEXT NOT NULL DEFAULT 'F3',
+    shortcut_remove_item TEXT NOT NULL DEFAULT 'F4',
+    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Escape',
+    updated_at TEXT NOT NULL
+);";
+        await createPdvSettings.ExecuteNonQueryAsync(cancellationToken);
+
         await EnsureColumnAsync(connection, "sales", "payment_method_id", "INTEGER NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "received_amount_cents", "INTEGER NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "change_amount_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
@@ -251,8 +271,13 @@ CREATE TABLE IF NOT EXISTS store_settings (
         await EnsureColumnAsync(connection, "sales", "remote_sale_id", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "sale_number", "INTEGER NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "discount_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "discount_percent", "REAL NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "surcharge_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "notes", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "receipt_requested", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "receipt_tax_id", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "sales", "printed_at", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "products", "sku", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "customers", "address", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "customers", "notes", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sale_items", "discount_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
@@ -332,13 +357,14 @@ CREATE INDEX IF NOT EXISTS idx_sale_refund_items_sale_item_id ON sale_refund_ite
     {
         var now = DateTimeOffset.UtcNow.ToString("O");
 
-        foreach (var method in Enum.GetValues<PaymentMethod>())
+        foreach (var method in Enum.GetValues<PaymentMethod>().Distinct())
         {
             var (code, name, allowsChange, sortOrder) = method switch
             {
                 PaymentMethod.Cash => ("CASH", "Dinheiro", 1, 1),
-                PaymentMethod.Card => ("CARD", "Cartão", 0, 2),
-                PaymentMethod.Pix => ("PIX", "PIX", 0, 3),
+                PaymentMethod.CreditCard => ("CREDIT_CARD", "Cartao de credito", 0, 2),
+                PaymentMethod.DebitCard => ("DEBIT_CARD", "Cartao de debito", 0, 3),
+                PaymentMethod.Pix => ("PIX", "PIX", 0, 4),
                 _ => (method.ToString().ToUpperInvariant(), method.ToString(), 0, 99)
             };
 
@@ -363,5 +389,23 @@ ON CONFLICT(id) DO UPDATE SET
             command.Parameters.AddWithValue("$updatedAt", now);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        var settingsCommand = connection.CreateCommand();
+        settingsCommand.CommandText = @"
+INSERT INTO pdv_settings (
+    id,
+    default_discount_percent,
+    ask_printer_before_print,
+    preferred_printer_name,
+    shortcut_add_item,
+    shortcut_finalize_sale,
+    shortcut_search_product,
+    shortcut_remove_item,
+    shortcut_cancel_sale,
+    updated_at)
+VALUES (1, 5, 1, NULL, 'Enter', 'F2', 'F3', 'F4', 'Escape', $updatedAt)
+ON CONFLICT(id) DO NOTHING;";
+        settingsCommand.Parameters.AddWithValue("$updatedAt", now);
+        await settingsCommand.ExecuteNonQueryAsync(cancellationToken);
     }
 }

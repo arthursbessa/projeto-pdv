@@ -1,36 +1,56 @@
 using System.IO;
+using System.Printing;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Xps;
 using Pdv.Application.Domain;
 
 namespace Pdv.Ui.Services;
 
 public static class FiscalCouponPrinter
 {
-    public static bool Print(Window owner, Sale sale, string storeName, string storeAddress, string storeCnpj, string storeLogoPath)
+    public static bool Print(Window owner, Sale sale, string? receiptTaxId, StoreSettings? storeSettings, PdvSettings pdvSettings)
     {
-        var printDialog = new PrintDialog
-        {
-            UserPageRangeEnabled = false
-        };
+        var document = BuildFiscalCouponDocument(sale, receiptTaxId, 280, storeSettings);
 
-        if (printDialog.ShowDialog() != true)
+        if (pdvSettings.AskPrinterBeforePrint || string.IsNullOrWhiteSpace(pdvSettings.PreferredPrinterName))
         {
+            var printDialog = new PrintDialog
+            {
+                UserPageRangeEnabled = false
+            };
+
+            if (printDialog.ShowDialog() != true)
+            {
+                return false;
+            }
+
+            printDialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "Cupom Fiscal");
+            return true;
+        }
+
+        var localPrintServer = new LocalPrintServer();
+        var queue = localPrintServer.GetPrintQueues()
+            .FirstOrDefault(q => string.Equals(q.Name, pdvSettings.PreferredPrinterName, StringComparison.OrdinalIgnoreCase));
+
+        if (queue is null)
+        {
+            MessageBox.Show(owner, "A impressora configurada nao foi encontrada. Revise as configuracoes de impressao.");
             return false;
         }
 
-        var document = BuildFiscalCouponDocument(sale, printDialog.PrintableAreaWidth, storeName, storeAddress, storeCnpj, storeLogoPath);
-        printDialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "Cupom Fiscal");
+        var writer = PrintQueue.CreateXpsDocumentWriter(queue);
+        writer.Write(((IDocumentPaginatorSource)document).DocumentPaginator);
         return true;
     }
 
-    private static FlowDocument BuildFiscalCouponDocument(Sale sale, double printableAreaWidth, string storeName, string storeAddress, string storeCnpj, string storeLogoPath)
+    private static FlowDocument BuildFiscalCouponDocument(Sale sale, string? receiptTaxId, double printableAreaWidth, StoreSettings? storeSettings)
     {
-        var cupomText = BuildFiscalCouponText(sale, storeName, storeAddress, storeCnpj);
+        var cupomText = BuildFiscalCouponText(sale, receiptTaxId, storeSettings);
         var document = new FlowDocument
         {
             FontFamily = new FontFamily("Consolas"),
@@ -40,7 +60,7 @@ public static class FiscalCouponPrinter
             TextAlignment = TextAlignment.Left
         };
 
-        var logo = TryCreateBlackAndWhiteLogo(storeLogoPath);
+        var logo = TryCreateBlackAndWhiteLogo(storeSettings?.LogoLocalPath);
         if (logo is not null)
         {
             document.Blocks.Add(new Paragraph(new InlineUIContainer(new Image
@@ -64,7 +84,7 @@ public static class FiscalCouponPrinter
         return document;
     }
 
-    private static BitmapSource? TryCreateBlackAndWhiteLogo(string storeLogoPath)
+    private static BitmapSource? TryCreateBlackAndWhiteLogo(string? storeLogoPath)
     {
         if (string.IsNullOrWhiteSpace(storeLogoPath))
         {
@@ -99,20 +119,24 @@ public static class FiscalCouponPrinter
         return blackAndWhite;
     }
 
-    private static string BuildFiscalCouponText(Sale sale, string storeName, string storeAddress, string storeCnpj)
+    private static string BuildFiscalCouponText(Sale sale, string? receiptTaxId, StoreSettings? storeSettings)
     {
         const int width = 44;
         var sb = new StringBuilder();
 
-        var safeStoreName = string.IsNullOrWhiteSpace(storeName) ? "LOJA" : storeName;
-        var safeStoreAddress = string.IsNullOrWhiteSpace(storeAddress) ? "ENDERECO NAO INFORMADO" : storeAddress;
-        var safeStoreCnpj = string.IsNullOrWhiteSpace(storeCnpj) ? "NAO INFORMADO" : storeCnpj;
+        var safeStoreName = string.IsNullOrWhiteSpace(storeSettings?.StoreName) ? "LOJA" : storeSettings!.StoreName;
+        var safeStoreAddress = string.IsNullOrWhiteSpace(storeSettings?.Address) ? "ENDERECO NAO INFORMADO" : storeSettings!.Address;
+        var safeStoreCnpj = string.IsNullOrWhiteSpace(storeSettings?.Cnpj) ? "NAO INFORMADO" : storeSettings!.Cnpj;
 
         sb.AppendLine(Center(safeStoreName.ToUpperInvariant(), width));
         sb.AppendLine(Center(safeStoreAddress.ToUpperInvariant(), width));
         sb.AppendLine($"CNPJ:{safeStoreCnpj}");
         sb.AppendLine(new string('-', width));
         sb.AppendLine(Center("CUPOM FISCAL", width));
+        if (!string.IsNullOrWhiteSpace(receiptTaxId))
+        {
+            sb.AppendLine($"CPF/CNPJ:{receiptTaxId}");
+        }
         sb.AppendLine(new string('-', width));
         sb.AppendLine("ITEM CODIGO      DESCRICAO          VL ITEM");
 
@@ -135,6 +159,10 @@ public static class FiscalCouponPrinter
         }
 
         sb.AppendLine(new string('-', width));
+        if (sale.DiscountCents > 0)
+        {
+            sb.AppendLine($"DESCONTO: R$ {FormatMoney(sale.DiscountCents)}");
+        }
         sb.AppendLine($"TOTAL R$ {FormatMoney(sale.TotalCents)}");
         sb.AppendLine($"PAGAMENTO: {GetPaymentLabel(sale.PaymentMethod)}");
 
@@ -156,7 +184,8 @@ public static class FiscalCouponPrinter
         return paymentMethod switch
         {
             PaymentMethod.Cash => "Dinheiro",
-            PaymentMethod.Card => "Cartao",
+            PaymentMethod.CreditCard => "Cartao de credito",
+            PaymentMethod.DebitCard => "Cartao de debito",
             PaymentMethod.Pix => "PIX",
             _ => paymentMethod.ToString()
         };

@@ -1,0 +1,84 @@
+<Window x:Class="Pdv.Ui.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:Pdv.Ui.Converters"
+        Title="Configuracoes"
+        Height="700"
+        Width="780"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:InverseBooleanConverter x:Key="InverseBoolConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Configuracoes do PDV" FontSize="28" FontWeight="Bold" Foreground="#153A73"/>
+
+                <Border Margin="0,18,0,0" Padding="18" Background="White" BorderBrush="#D7E2F0" BorderThickness="1.2" CornerRadius="16">
+                    <StackPanel>
+                        <TextBlock Text="Atalhos de teclado" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="180"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Adicionar item" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutAddItem}"/>
+                            <TextBlock Grid.Row="1" Text="Fechar venda" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="1" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutFinalizeSale}"/>
+                            <TextBlock Grid.Row="2" Text="Buscar produto" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="2" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutSearchProduct}"/>
+                            <TextBlock Grid.Row="3" Text="Cancelar item" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="3" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutRemoveItem}"/>
+                            <TextBlock Grid.Row="4" Text="Cancelar cupom" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="4" Grid.Column="1" Margin="12,0,0,0" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutCancelSale}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,18,0,0" Padding="18" Background="White" BorderBrush="#D7E2F0" BorderThickness="1.2" CornerRadius="16">
+                    <StackPanel>
+                        <TextBlock Text="Configuracoes de impressao" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                        <CheckBox Margin="0,14,0,0" Content="Perguntar a impressora antes de imprimir" IsChecked="{Binding AskPrinterBeforePrint}"/>
+                        <TextBlock Margin="0,14,0,6" Text="Impressora padrao do PDV" FontWeight="SemiBold"/>
+                        <ComboBox ItemsSource="{Binding AvailablePrinters}" SelectedItem="{Binding PreferredPrinterName}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,18,0,0" Padding="18" Background="White" BorderBrush="#D7E2F0" BorderThickness="1.2" CornerRadius="16">
+                    <StackPanel>
+                        <TextBlock Text="Desconto default" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                        <TextBlock Margin="0,14,0,6" Text="Percentual inicial aplicado na tela de finalizar venda" FontWeight="SemiBold"/>
+                        <TextBox Width="160" Text="{Binding DefaultDiscountPercentInput}" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="1" Margin="0,18,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Foreground="#334155" FontWeight="SemiBold"/>
+            <Button Grid.Column="1" Content="Cancelar" Margin="12,0,0,0" Padding="14,8" Background="#64748B" Foreground="White" Click="Cancel_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+            <Button Grid.Column="2" Content="Salvar" Margin="12,0,0,0" Padding="14,8" Background="#1F5FBF" Foreground="White" Click="Save_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+        </Grid>
+    </Grid>
+</Window>

@@ -17,6 +17,7 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpClient<ICatalogApiClient, HttpCatalogApiClient>();
         services.AddHttpClient<ICustomersApiClient, HttpCustomersApiClient>();
+        services.AddHttpClient<IProductsApiClient, HttpProductsApiClient>();
         services.AddHttpClient<ISalesApiClient, HttpSalesApiClient>();
         services.AddHttpClient<IRefundsApiClient, HttpRefundsApiClient>();
         services.AddHttpClient<IAuthApiClient, HttpAuthApiClient>();
@@ -30,6 +31,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IOutboxRepository, OutboxRepository>();
         services.AddSingleton<IUserRepository, UserRepository>();
         services.AddSingleton<IStoreSettingsRepository, StoreSettingsRepository>();
+        services.AddSingleton<IPdvSettingsRepository, PdvSettingsRepository>();
 
         services.AddSingleton<DatabaseInitializer>();
         services.AddSingleton<SaleBuilderService>();

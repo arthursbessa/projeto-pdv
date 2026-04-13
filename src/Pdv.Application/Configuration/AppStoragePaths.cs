@@ -5,6 +5,7 @@ namespace Pdv.Application.Configuration;
 public sealed class AppStoragePaths
 {
     private const string AppFolderName = "PDV-Client";
+    private const string UiProjectFolderName = "Pdv.Ui";
 
     public AppStoragePaths()
     {
@@ -16,7 +17,7 @@ public sealed class AppStoragePaths
 
         DataDirectory = Path.Combine(RuntimeRoot, "data");
         AssetsDirectory = Path.Combine(DataDirectory, "assets");
-        LogsDirectory = Path.Combine(InstallRoot, "logs");
+        LogsDirectory = ResolveLogsDirectory();
 
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(AssetsDirectory);
@@ -42,5 +43,33 @@ public sealed class AppStoragePaths
         }
 
         return Path.GetFullPath(Path.Combine(RuntimeRoot, configuredRelativePath));
+    }
+
+    private string ResolveLogsDirectory()
+    {
+        var developmentRoot = TryResolveDevelopmentProjectRoot();
+        return developmentRoot is null
+            ? Path.Combine(InstallRoot, "logs")
+            : Path.Combine(developmentRoot, "logs");
+    }
+
+    private string? TryResolveDevelopmentProjectRoot()
+    {
+        var current = new DirectoryInfo(InstallRoot);
+        while (current is not null)
+        {
+            var looksLikeRepoRoot =
+                File.Exists(Path.Combine(current.FullName, ".gitignore")) &&
+                Directory.Exists(Path.Combine(current.FullName, "src", UiProjectFolderName));
+
+            if (looksLikeRepoRoot)
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
     }
 }

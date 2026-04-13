@@ -73,6 +73,28 @@ GROUP BY type;";
         return result;
     }
 
+    public async Task EnqueueAsync(string type, string payloadJson, CancellationToken cancellationToken = default)
+    {
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+INSERT INTO outbox_events (id, type, payload_json, status, attempts, next_retry_at, last_error, created_at, sent_at)
+VALUES ($id, $type, $payloadJson, $status, $attempts, $nextRetryAt, $lastError, $createdAt, $sentAt);";
+        command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+        command.Parameters.AddWithValue("$type", type);
+        command.Parameters.AddWithValue("$payloadJson", payloadJson);
+        command.Parameters.AddWithValue("$status", "Pending");
+        command.Parameters.AddWithValue("$attempts", 0);
+        command.Parameters.AddWithValue("$nextRetryAt", DBNull.Value);
+        command.Parameters.AddWithValue("$lastError", DBNull.Value);
+        command.Parameters.AddWithValue("$createdAt", DateTimeOffset.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("$sentAt", DBNull.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task MarkAsSentAsync(Guid id, DateTimeOffset sentAt, CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.Create();

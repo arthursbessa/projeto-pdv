@@ -79,6 +79,7 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
             list.Add(new ProductCacheItem
             {
                 ProductId = id,
+                Sku = item.TryGetProperty("sku", out var skuEl) ? skuEl.GetString() ?? string.Empty : string.Empty,
                 Barcode = barcode,
                 Description = name,
                 PriceCents = (int)Math.Round(priceDecimal * 100m, MidpointRounding.AwayFromZero),

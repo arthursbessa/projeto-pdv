@@ -61,6 +61,7 @@
                 <Button Content="Acessar PDV" Click="OpenPdv_Click" Margin="10" Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="18" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
                 <Button Content="Integracoes" Click="OpenIntegrations_Click" Margin="10" Background="#7C3AED" Foreground="White" FontWeight="Bold" FontSize="18" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
                 <Button Content="Vendas" Click="OpenSalesHistory_Click" Margin="10" Background="#0F766E" Foreground="White" FontWeight="Bold" FontSize="18" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                <Button Content="Configuracoes" Click="OpenSettings_Click" Margin="10" Background="#1D4ED8" Foreground="White" FontWeight="Bold" FontSize="18" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
             </UniformGrid>
         </Grid>
 

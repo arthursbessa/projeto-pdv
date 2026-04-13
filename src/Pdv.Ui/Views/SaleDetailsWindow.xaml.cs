@@ -1,6 +1,4 @@
 using System.Windows;
-using Microsoft.Extensions.DependencyInjection;
-using Pdv.Application.Abstractions;
 using Pdv.Ui.Services;
 using Pdv.Ui.ViewModels;
 
@@ -20,15 +18,18 @@ public partial class SaleDetailsWindow : Window
             return;
         }
 
-        var storeSettingsRepository = App.Services.GetRequiredService<IStoreSettingsRepository>();
-        var settings = await storeSettingsRepository.GetCurrentAsync();
-        _ = FiscalCouponPrinter.Print(
+        var printContext = await vm.GetPrintContextAsync();
+        var printed = FiscalCouponPrinter.Print(
             this,
             vm.SelectedSaleDetails,
-            settings?.StoreName ?? "LOJA",
-            settings?.Address ?? string.Empty,
-            settings?.Cnpj ?? string.Empty,
-            settings?.LogoLocalPath ?? string.Empty);
+            vm.SelectedSaleDetails.ReceiptTaxId,
+            printContext.StoreSettings,
+            printContext.Settings);
+
+        if (printed)
+        {
+            await vm.MarkSelectedSalePrintedAsync(vm.SelectedSaleDetails.ReceiptTaxId);
+        }
     }
 
     private async void Refund_Click(object sender, RoutedEventArgs e)

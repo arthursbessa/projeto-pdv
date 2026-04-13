@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Services;
 using Pdv.Ui.Formatting;
 using Pdv.Ui.Services;
 
@@ -13,6 +14,9 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
 {
     private readonly ISalesRepository _salesRepository;
     private readonly IRefundsApiClient _refundsApiClient;
+    private readonly IStoreSettingsRepository _storeSettingsRepository;
+    private readonly IPdvSettingsRepository _pdvSettingsRepository;
+    private readonly SyncService _syncService;
     private readonly SessionContext _session;
     private readonly IErrorFileLogger _errorLogger;
     private readonly List<SaleHistoryItemViewModel> _allSales = [];
@@ -29,11 +33,17 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
     public SalesHistoryViewModel(
         ISalesRepository salesRepository,
         IRefundsApiClient refundsApiClient,
+        IStoreSettingsRepository storeSettingsRepository,
+        IPdvSettingsRepository pdvSettingsRepository,
+        SyncService syncService,
         SessionContext session,
         IErrorFileLogger errorLogger)
     {
         _salesRepository = salesRepository;
         _refundsApiClient = refundsApiClient;
+        _storeSettingsRepository = storeSettingsRepository;
+        _pdvSettingsRepository = pdvSettingsRepository;
+        _syncService = syncService;
         _session = session;
         _errorLogger = errorLogger;
     }
@@ -133,6 +143,11 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
     public string SelectedSaleTotal => _selectedSaleDetails is null ? "-" : MoneyFormatter.FormatFromCents(_selectedSaleDetails.TotalCents);
     public string SelectedSaleReceived => _selectedSaleDetails?.ReceivedAmountCents is int received ? MoneyFormatter.FormatFromCents(received) : "-";
     public string SelectedSaleChange => _selectedSaleDetails is null ? "-" : MoneyFormatter.FormatFromCents(_selectedSaleDetails.ChangeAmountCents);
+    public string SelectedSaleDiscount => _selectedSaleDetails is null ? "-" : MoneyFormatter.FormatFromCents(_selectedSaleDetails.DiscountCents);
+    public string SelectedSaleReceiptTaxId => string.IsNullOrWhiteSpace(_selectedSaleDetails?.ReceiptTaxId) ? "-" : _selectedSaleDetails!.ReceiptTaxId!;
+    public string SelectedSalePrintedStatus => _selectedSaleDetails?.PrintedAt is null
+        ? "Nao impresso"
+        : $"Impresso em {_selectedSaleDetails.PrintedAt.Value.ToLocalTime():dd/MM/yyyy HH:mm:ss}";
 
     public async Task LoadAsync()
     {
@@ -303,6 +318,36 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task<(StoreSettings? StoreSettings, PdvSettings Settings)> GetPrintContextAsync()
+    {
+        var storeSettings = await _storeSettingsRepository.GetCurrentAsync();
+        var settings = await _pdvSettingsRepository.GetCurrentAsync();
+        return (storeSettings, settings);
+    }
+
+    public async Task MarkSelectedSalePrintedAsync(string? receiptTaxId)
+    {
+        if (_selectedSaleDetails is null)
+        {
+            return;
+        }
+
+        var printedAt = DateTimeOffset.UtcNow;
+        var effectiveTaxId = string.IsNullOrWhiteSpace(receiptTaxId) ? _selectedSaleDetails.ReceiptTaxId : receiptTaxId;
+        var payload = JsonSerializer.Serialize(new
+        {
+            local_sale_id = _selectedSaleDetails.SaleId,
+            sale_id = _selectedSaleDetails.RemoteSaleId,
+            printed_at = printedAt.ToString("O"),
+            receipt_tax_id = effectiveTaxId
+        });
+
+        await _salesRepository.MarkAsPrintedAsync(_selectedSaleDetails.SaleId, printedAt, effectiveTaxId, payload);
+        _selectedSaleDetails = await _salesRepository.FindByIdAsync(_selectedSaleDetails.SaleId);
+        NotifySelectedSaleChanged();
+        TriggerBackgroundSync();
+    }
+
     private async Task LoadSelectedSaleAsync()
     {
         if (SelectedSale is null)
@@ -360,6 +405,9 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SelectedSaleTotal));
         OnPropertyChanged(nameof(SelectedSaleReceived));
         OnPropertyChanged(nameof(SelectedSaleChange));
+        OnPropertyChanged(nameof(SelectedSaleDiscount));
+        OnPropertyChanged(nameof(SelectedSaleReceiptTaxId));
+        OnPropertyChanged(nameof(SelectedSalePrintedStatus));
     }
 
     private void RefreshFilterCollections()
@@ -455,10 +503,26 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
         return paymentMethod switch
         {
             PaymentMethod.Cash => "Dinheiro",
-            PaymentMethod.Card => "Cartao",
+            PaymentMethod.CreditCard => "Cartao de credito",
+            PaymentMethod.DebitCard => "Cartao de debito",
             PaymentMethod.Pix => "PIX",
             _ => paymentMethod.ToString()
         };
+    }
+
+    private void TriggerBackgroundSync()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _syncService.RunOnceAsync();
+            }
+            catch (Exception ex)
+            {
+                _errorLogger.LogError("Falha na integracao assincrona das vendas", ex);
+            }
+        });
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

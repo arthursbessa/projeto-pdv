@@ -8,6 +8,7 @@ public interface ISalesRepository
     Task<IReadOnlyList<SaleHistoryEntry>> GetHistoryAsync(DateTime date, CancellationToken cancellationToken = default);
     Task<Sale?> FindByIdAsync(Guid saleId, CancellationToken cancellationToken = default);
     Task SaveRemoteSaleReferenceAsync(Guid localSaleId, string remoteSaleId, int? saleNumber, CancellationToken cancellationToken = default);
+    Task MarkAsPrintedAsync(Guid saleId, DateTimeOffset printedAt, string? receiptTaxId, string? outboxPayloadJson = null, CancellationToken cancellationToken = default);
     Task SaveRefundAsync(Guid saleId, string reason, IReadOnlyCollection<SaleRefundItem> items, string? operatorId, CancellationToken cancellationToken = default);
     Task SaveRefundWithOutboxAsync(Guid saleId, string reason, IReadOnlyCollection<SaleRefundItem> items, string outboxPayloadJson, string? operatorId, CancellationToken cancellationToken = default);
 }

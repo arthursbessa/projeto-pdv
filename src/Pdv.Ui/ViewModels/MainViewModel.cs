@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Windows.Media;
+using System.Windows.Input;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
@@ -20,25 +20,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IProductCacheRepository _productCacheRepository;
     private readonly ICustomerRepository _customerRepository;
     private readonly ICatalogApiClient _catalogApiClient;
+    private readonly IProductsApiClient _productsApiClient;
     private readonly SyncService _syncService;
     private readonly SessionContext _session;
     private readonly IStoreSettingsRepository _storeSettingsRepository;
+    private readonly IPdvSettingsRepository _pdvSettingsRepository;
     private readonly IErrorFileLogger _errorLogger;
     private readonly AppRuntimeInfoService _runtimeInfo;
+
     private string _barcodeInput = string.Empty;
-    private string _statusMessage = "PDV iniciado.";
+    private string _statusMessage = "PDV pronto para operacao.";
     private SaleItem? _selectedItem;
     private bool _isBusy;
-    private string _storeName = "LOJA";
-    private string _storeCnpj = string.Empty;
-    private string _storeAddress = string.Empty;
-    private string _storeLogoPath = string.Empty;
     private string _lastScannedDescription = "Aguardando leitura de produto";
     private string _lastScannedBarcode = "-";
     private int _lastScannedPriceCents;
     private int _lastScannedQuantity;
-    private CustomerRecord? _selectedCustomer;
     private bool _isOnlineIntegration = true;
+    private PdvSettings _settings = new();
 
     public MainViewModel(
         SaleBuilderService saleBuilderService,
@@ -47,10 +46,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IProductCacheRepository productCacheRepository,
         ICustomerRepository customerRepository,
         ICatalogApiClient catalogApiClient,
+        IProductsApiClient productsApiClient,
         SyncService syncService,
         PdvOptions options,
         SessionContext session,
         IStoreSettingsRepository storeSettingsRepository,
+        IPdvSettingsRepository pdvSettingsRepository,
         IErrorFileLogger errorLogger,
         AppRuntimeInfoService runtimeInfo)
     {
@@ -60,9 +61,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _productCacheRepository = productCacheRepository;
         _customerRepository = customerRepository;
         _catalogApiClient = catalogApiClient;
+        _productsApiClient = productsApiClient;
         _syncService = syncService;
         _session = session;
         _storeSettingsRepository = storeSettingsRepository;
+        _pdvSettingsRepository = pdvSettingsRepository;
         _errorLogger = errorLogger;
         _runtimeInfo = runtimeInfo;
 
@@ -70,7 +73,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         DatabaseFullPath = options.DatabaseFullPath;
 
         RemoveSelectedCommand = new RelayCommand(RemoveSelectedItem, () => SelectedItem is not null);
-        CancelSaleCommand = new RelayCommand(CancelSale, () => Items.Any() || SelectedCustomer is not null);
+        CancelSaleCommand = new RelayCommand(CancelSale, () => Items.Any());
     }
 
     public ObservableCollection<SaleItem> Items { get; } = [];
@@ -98,45 +101,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsOnlineIntegration
     {
         get => _isOnlineIntegration;
-        private set
-        {
-            if (SetField(ref _isOnlineIntegration, value))
-            {
-                OnPropertyChanged(nameof(IntegrationStatusText));
-                OnPropertyChanged(nameof(IntegrationStatusBrush));
-            }
-        }
+        private set => SetField(ref _isOnlineIntegration, value);
     }
 
-    public string IntegrationStatusText => IsOnlineIntegration ? "Integracao ONLINE" : "Integracao LOCAL";
-    public Brush IntegrationStatusBrush => IsOnlineIntegration
-        ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
-        : new SolidColorBrush(Color.FromRgb(185, 28, 28));
     public string VersionLabel => _runtimeInfo.VersionLabel;
-
-    public string StoreName
-    {
-        get => _storeName;
-        set => SetField(ref _storeName, value);
-    }
-
-    public string StoreCnpj
-    {
-        get => _storeCnpj;
-        set => SetField(ref _storeCnpj, value);
-    }
-
-    public string StoreAddress
-    {
-        get => _storeAddress;
-        set => SetField(ref _storeAddress, value);
-    }
-
-    public string StoreLogoPath
-    {
-        get => _storeLogoPath;
-        set => SetField(ref _storeLogoPath, value);
-    }
+    public string IntegrationStatusText => IsOnlineIntegration ? "ONLINE" : "LOCAL";
 
     public string LastScannedDescription
     {
@@ -162,36 +131,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set => SetField(ref _lastScannedQuantity, value);
     }
 
-    public CustomerRecord? SelectedCustomer
-    {
-        get => _selectedCustomer;
-        private set
-        {
-            if (SetField(ref _selectedCustomer, value))
-            {
-                OnPropertyChanged(nameof(SelectedCustomerDisplay));
-                OnPropertyChanged(nameof(SelectedCustomerHint));
-                OnPropertyChanged(nameof(ReceiptCaption));
-                CancelSaleCommand.RaiseCanExecuteChanged();
-            }
-        }
-    }
-
-    public string SelectedCustomerDisplay => SelectedCustomer is null
-        ? "Nenhum cliente selecionado"
-        : string.IsNullOrWhiteSpace(SelectedCustomer.Cpf)
-            ? SelectedCustomer.Name
-            : $"{SelectedCustomer.Name} - {SelectedCustomer.Cpf}";
-
-    public string SelectedCustomerHint => SelectedCustomer is null
-        ? "Venda sem cliente identificado"
-        : "Cliente vinculado a esta venda";
-
     public string LastScannedPriceFormatted => MoneyFormatter.FormatFromCents(LastScannedPriceCents);
     public string LastScannedQuantityText => LastScannedQuantity <= 0 ? "Nenhum item lido" : $"Quantidade na venda: {LastScannedQuantity}";
     public string DatabaseRelativePath { get; }
     public string DatabaseFullPath { get; }
-    public string DatabaseStatus => $"Cache local: {DatabaseRelativePath}";
     public int ItemCount => Items.Sum(x => x.Quantity);
     public int TotalCents => Items.Sum(x => x.SubtotalCents);
     public string TotalFormatted => MoneyFormatter.FormatFromCents(TotalCents);
@@ -205,9 +148,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 RemoveSelectedCommand.RaiseCanExecuteChanged();
                 NotifySelectionMetrics();
+                OnPropertyChanged(nameof(CanEditSelectedItem));
             }
         }
     }
+
+    public bool CanEditSelectedItem => SelectedItem is not null;
 
     public string SelectedItemUnitPriceFormatted => SelectedItem is null
         ? LastScannedPriceFormatted
@@ -220,24 +166,48 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string DiscountFormatted => MoneyFormatter.FormatFromCents(0);
     public string ItemCountFormatted => ItemCount.ToString("N0");
 
-    public string ReceiptCaption => SelectedCustomer is null
-        ? "CUPOM FISCAL"
-        : $"CUPOM FISCAL  |  {SelectedCustomer.Name.ToUpperInvariant()}";
+    public string AddItemShortcutLabel => _settings.ShortcutAddItem;
+    public string FinalizeShortcutLabel => _settings.ShortcutFinalizeSale;
+    public string SearchProductShortcutLabel => _settings.ShortcutSearchProduct;
+    public string RemoveItemShortcutLabel => _settings.ShortcutRemoveItem;
+    public string CancelSaleShortcutLabel => _settings.ShortcutCancelSale;
+    public decimal DefaultDiscountPercent => _settings.DefaultDiscountPercent;
+
+    public async Task LoadAsync()
+    {
+        _settings = await _pdvSettingsRepository.GetCurrentAsync();
+        OnPropertyChanged(nameof(AddItemShortcutLabel));
+        OnPropertyChanged(nameof(FinalizeShortcutLabel));
+        OnPropertyChanged(nameof(SearchProductShortcutLabel));
+        OnPropertyChanged(nameof(RemoveItemShortcutLabel));
+        OnPropertyChanged(nameof(CancelSaleShortcutLabel));
+        OnPropertyChanged(nameof(DefaultDiscountPercent));
+        await LoadStoreSettingsAsync();
+    }
 
     public async Task LoadStoreSettingsAsync()
     {
         var settings = await _storeSettingsRepository.GetCurrentAsync();
-        if (settings is null)
-        {
-            IsOnlineIntegration = false;
-            return;
-        }
+        IsOnlineIntegration = settings is not null;
+    }
 
-        StoreName = settings.StoreName;
-        StoreCnpj = settings.Cnpj;
-        StoreAddress = settings.Address;
-        StoreLogoPath = settings.LogoLocalPath;
-        IsOnlineIntegration = true;
+    public async Task RefreshSettingsAsync()
+    {
+        _settings = await _pdvSettingsRepository.GetCurrentAsync();
+        OnPropertyChanged(nameof(AddItemShortcutLabel));
+        OnPropertyChanged(nameof(FinalizeShortcutLabel));
+        OnPropertyChanged(nameof(SearchProductShortcutLabel));
+        OnPropertyChanged(nameof(RemoveItemShortcutLabel));
+        OnPropertyChanged(nameof(CancelSaleShortcutLabel));
+        OnPropertyChanged(nameof(DefaultDiscountPercent));
+    }
+
+    public bool MatchesShortcut(Key key, string configuredShortcut)
+    {
+        var normalized = ShortcutKeyHelper.NormalizeKeyName(configuredShortcut);
+        var current = ShortcutKeyHelper.NormalizeKeyName(key.ToString());
+        return string.Equals(normalized, current, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(normalized, ShortcutKeyHelper.NormalizeKeyName(ShortcutKeyHelper.ToDisplayString(key)), StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task RefreshCatalogAsync()
@@ -273,34 +243,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _errorLogger.LogError("Falha ao atualizar catalogo", ex);
             IsOnlineIntegration = false;
             StatusMessage = "Nao foi possivel atualizar o catalogo agora.";
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    public async Task SyncSalesAsync()
-    {
-        if (IsBusy)
-        {
-            return;
-        }
-
-        IsBusy = true;
-        try
-        {
-            StatusMessage = "Integrando vendas pendentes...";
-            var sent = await _syncService.RunOnceAsync();
-            var pending = await _outboxRepository.GetPendingCountAsync();
-            IsOnlineIntegration = true;
-            StatusMessage = $"Integracao concluida. Enviadas: {sent}. Pendentes: {pending}.";
-        }
-        catch (Exception ex)
-        {
-            _errorLogger.LogError("Falha na integracao manual de vendas", ex);
-            IsOnlineIntegration = false;
-            StatusMessage = "Nao foi possivel integrar as vendas agora.";
         }
         finally
         {
@@ -385,26 +327,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
-    public async Task<bool> SelectCustomerByIdAsync(string customerId)
-    {
-        var customer = await _customerRepository.FindByIdAsync(customerId);
-        if (customer is null)
-        {
-            StatusMessage = "Cliente selecionado nao foi encontrado.";
-            return false;
-        }
-
-        SelectedCustomer = customer;
-        StatusMessage = $"Cliente selecionado: {customer.Name}.";
-        return true;
-    }
-
-    public void ClearSelectedCustomer()
-    {
-        SelectedCustomer = null;
-        StatusMessage = "Cliente removido da venda.";
-    }
-
     public void RemoveSelectedItem()
     {
         if (SelectedItem is null)
@@ -416,6 +338,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Items.Remove(SelectedItem);
         SelectedItem = null;
         NotifyTotals();
+        OnPropertyChanged(nameof(CanEditSelectedItem));
         StatusMessage = "Item removido.";
     }
 
@@ -423,8 +346,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         Items.Clear();
         SelectedItem = null;
-        SelectedCustomer = null;
+        LastScannedDescription = "Aguardando leitura de produto";
+        LastScannedBarcode = "-";
+        LastScannedPriceCents = 0;
+        LastScannedQuantity = 0;
+        OnPropertyChanged(nameof(LastScannedPriceFormatted));
+        OnPropertyChanged(nameof(LastScannedQuantityText));
+        OnPropertyChanged(nameof(SelectedItemUnitPriceFormatted));
+        OnPropertyChanged(nameof(SelectedItemQuantityFormatted));
         NotifyTotals();
+        OnPropertyChanged(nameof(CanEditSelectedItem));
         StatusMessage = "Venda cancelada.";
     }
 
@@ -453,12 +384,63 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
-    public bool UpdateSelectedItemQuantity(string? quantityText)
+    public async Task<bool> UpdateItemPriceAsync(SaleItem? item, string? priceText, bool updateBaseProductPrice)
     {
-        return UpdateItemQuantity(SelectedItem, quantityText);
+        if (item is null)
+        {
+            StatusMessage = "Nenhum item selecionado para alterar preco.";
+            return false;
+        }
+
+        if (!MoneyFormatter.TryParseToCents(priceText, out var priceCents) || priceCents < 0)
+        {
+            StatusMessage = "Preco invalido.";
+            return false;
+        }
+
+        item.SetPrice(priceCents);
+        NotifyTotals();
+        if (LastScannedBarcode == item.Barcode)
+        {
+            UpdateLastScanned(item);
+        }
+
+        if (!updateBaseProductPrice)
+        {
+            StatusMessage = "Preco atualizado apenas neste item.";
+            return true;
+        }
+
+        var cachedProduct = await _productCacheRepository.FindByIdAsync(item.ProductId);
+        if (cachedProduct is not null)
+        {
+            cachedProduct.PriceCents = priceCents;
+            cachedProduct.UpdatedAt = DateTimeOffset.UtcNow;
+            await _productCacheRepository.UpdateAsync(cachedProduct);
+        }
+
+        try
+        {
+            await _productsApiClient.UpdatePriceAsync(item.ProductId, priceCents);
+            IsOnlineIntegration = true;
+            StatusMessage = "Preco atualizado na venda e no cadastro do produto.";
+        }
+        catch (Exception ex)
+        {
+            _errorLogger.LogError("Falha ao atualizar preco base do produto no PDV", ex);
+            IsOnlineIntegration = false;
+            StatusMessage = "Preco atualizado na venda e salvo localmente. Nao foi possivel atualizar a API agora.";
+        }
+
+        return true;
     }
 
-    public async Task<Sale?> FinalizeAsync(PaymentMethod paymentMethod, int? receivedAmountCents = null)
+    public async Task<CustomerRecord?> GetCustomerByIdAsync(string customerId)
+    {
+        return await _customerRepository.FindByIdAsync(customerId);
+    }
+
+    public async Task<Sale?> FinalizeAsync(SaleCheckoutRequest request)
     {
         if (IsBusy)
         {
@@ -483,9 +465,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return null;
         }
 
-        if (paymentMethod == PaymentMethod.Cash)
+        if (request.PaymentMethod == PaymentMethod.Cash)
         {
-            if (!receivedAmountCents.HasValue || receivedAmountCents.Value < TotalCents)
+            if (!request.ReceivedAmountCents.HasValue || request.ReceivedAmountCents.Value < TotalCents)
             {
                 StatusMessage = "Valor recebido em dinheiro deve ser maior ou igual ao total da venda.";
                 return null;
@@ -496,22 +478,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             StatusMessage = "Finalizando venda...";
-            var changeAmountCents = paymentMethod == PaymentMethod.Cash && receivedAmountCents.HasValue
-                ? receivedAmountCents.Value - TotalCents
+            var subtotalCents = Items.Sum(x => x.SubtotalCents);
+            var discountPercent = Math.Clamp(request.DiscountPercent, 0m, 100m);
+            var discountCents = (int)Math.Round(subtotalCents * (discountPercent / 100m), MidpointRounding.AwayFromZero);
+            var finalTotalCents = Math.Max(subtotalCents - discountCents, 0);
+            var changeAmountCents = request.PaymentMethod == PaymentMethod.Cash && request.ReceivedAmountCents.HasValue
+                ? request.ReceivedAmountCents.Value - finalTotalCents
                 : 0;
 
             var sale = new Sale
             {
                 SaleId = Guid.NewGuid(),
                 CreatedAt = DateTimeOffset.UtcNow,
-                PaymentMethod = paymentMethod,
-                CustomerId = SelectedCustomer?.Id,
-                CustomerName = SelectedCustomer?.Name,
+                PaymentMethod = request.PaymentMethod,
+                CustomerId = request.CustomerId,
+                CustomerName = request.CustomerName,
                 OperatorId = _session.CurrentUser?.Id,
                 OperatorName = _session.CurrentUser?.FullName,
-                ReceivedAmountCents = paymentMethod == PaymentMethod.Cash ? receivedAmountCents : null,
+                ReceivedAmountCents = request.PaymentMethod == PaymentMethod.Cash ? request.ReceivedAmountCents : null,
                 ChangeAmountCents = changeAmountCents,
                 CashRegisterSessionId = _session.OpenCashRegister.Id,
+                DiscountPercent = discountPercent,
+                DiscountCents = discountCents,
+                ReceiptRequested = request.ReceiptRequested,
+                ReceiptTaxId = request.ReceiptTaxId,
                 Items = Items.Select(x => new SaleItem
                 {
                     ProductId = x.ProductId,
@@ -530,13 +520,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 local_sale_id = sale.SaleId,
                 session_id = _session.OpenCashRegister.Id,
-                payment_method = sale.PaymentMethod.ToString().ToLowerInvariant(),
+                payment_method = GetPaymentCode(sale.PaymentMethod),
                 customer_id = sale.CustomerId,
+                discount_percent = sale.DiscountPercent,
+                receipt_requested = sale.ReceiptRequested,
+                receipt_tax_id = string.IsNullOrWhiteSpace(sale.ReceiptTaxId) ? null : sale.ReceiptTaxId,
                 items = sale.Items.Select(x => new
                 {
                     product_id = x.ProductId,
                     barcode = x.Barcode,
-                    quantity = x.Quantity
+                    quantity = x.Quantity,
+                    unit_price = x.PriceCents / 100m
                 })
             });
 
@@ -545,7 +539,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var pending = await _outboxRepository.GetPendingCountAsync();
             CancelSale();
-            StatusMessage = $"Venda finalizada ({paymentMethod}) e enviada para integracao assincrona. Pendentes atuais: {pending}.";
+            StatusMessage = $"Venda finalizada ({GetPaymentLabel(sale.PaymentMethod)}) e enviada para integracao assincrona. Pendentes atuais: {pending}.";
             return sale;
         }
         catch (Exception ex)
@@ -560,9 +554,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public (string StoreName, string StoreAddress, string StoreCnpj, string StoreLogoPath) GetStorePrintInfo()
+    public async Task MarkSalePrintedAsync(Sale sale, string? receiptTaxId)
     {
-        return (StoreName, StoreAddress, StoreCnpj, StoreLogoPath);
+        var printedAt = DateTimeOffset.UtcNow;
+        var payload = JsonSerializer.Serialize(new
+        {
+            local_sale_id = sale.SaleId,
+            sale_id = sale.RemoteSaleId,
+            printed_at = printedAt.ToString("O"),
+            receipt_tax_id = string.IsNullOrWhiteSpace(receiptTaxId) ? sale.ReceiptTaxId : receiptTaxId
+        });
+
+        await _salesRepository.MarkAsPrintedAsync(sale.SaleId, printedAt, string.IsNullOrWhiteSpace(receiptTaxId) ? sale.ReceiptTaxId : receiptTaxId, payload);
+        TriggerBackgroundSync();
+    }
+
+    public async Task<(StoreSettings? StoreSettings, PdvSettings Settings)> GetPrintContextAsync()
+    {
+        var storeSettings = await _storeSettingsRepository.GetCurrentAsync();
+        var settings = await _pdvSettingsRepository.GetCurrentAsync();
+        return (storeSettings, settings);
     }
 
     private void TriggerBackgroundSync()
@@ -617,6 +628,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(SelectedItemUnitPriceFormatted));
         OnPropertyChanged(nameof(SelectedItemQuantityFormatted));
+    }
+
+    private static string GetPaymentCode(PaymentMethod paymentMethod)
+    {
+        return paymentMethod switch
+        {
+            PaymentMethod.Cash => "cash",
+            PaymentMethod.CreditCard => "credit_card",
+            PaymentMethod.DebitCard => "debit_card",
+            PaymentMethod.Pix => "pix",
+            _ => paymentMethod.ToString().ToLowerInvariant()
+        };
+    }
+
+    private static string GetPaymentLabel(PaymentMethod paymentMethod)
+    {
+        return paymentMethod switch
+        {
+            PaymentMethod.Cash => "Dinheiro",
+            PaymentMethod.CreditCard => "Cartao de credito",
+            PaymentMethod.DebitCard => "Cartao de debito",
+            PaymentMethod.Pix => "PIX",
+            _ => paymentMethod.ToString()
+        };
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -22,7 +22,14 @@
         <TextBlock Text="Status das integrações" Foreground="White" FontSize="24" FontWeight="Bold" Margin="0,0,0,14"/>
 
         <Border Grid.Row="1" Background="#111827" CornerRadius="12" Padding="12">
-            <DataGrid ItemsSource="{Binding IntegrationStatuses}" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" CanUserAddRows="False" BorderThickness="0">
+            <DataGrid ItemsSource="{Binding IntegrationStatuses}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      BorderThickness="0"
+                      VerticalAlignment="Top"
+                      RowHeaderWidth="0">
                 <DataGrid.ColumnHeaderStyle>
                     <Style TargetType="DataGridColumnHeader">
                         <Setter Property="Background" Value="#1E293B"/>

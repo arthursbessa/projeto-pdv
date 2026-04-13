@@ -24,12 +24,48 @@ public sealed class SalesRepository : ISalesRepository
         var saleCommand = connection.CreateCommand();
         saleCommand.Transaction = tx;
         saleCommand.CommandText = @"
-INSERT INTO sales (id, created_at, total_cents, payment_method, payment_method_id, received_amount_cents, change_amount_cents, status, customer_id, operator_id, cash_register_session_id, remote_sale_id, sale_number)
-VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, $receivedAmountCents, $changeAmountCents, $status, $customerId, $operatorId, $cashRegisterSessionId, $remoteSaleId, $saleNumber);";
+INSERT INTO sales (
+    id,
+    created_at,
+    total_cents,
+    payment_method,
+    payment_method_id,
+    received_amount_cents,
+    change_amount_cents,
+    status,
+    customer_id,
+    operator_id,
+    cash_register_session_id,
+    remote_sale_id,
+    sale_number,
+    discount_cents,
+    discount_percent,
+    receipt_requested,
+    receipt_tax_id,
+    printed_at)
+VALUES (
+    $id,
+    $createdAt,
+    $totalCents,
+    $paymentMethod,
+    $paymentMethodId,
+    $receivedAmountCents,
+    $changeAmountCents,
+    $status,
+    $customerId,
+    $operatorId,
+    $cashRegisterSessionId,
+    $remoteSaleId,
+    $saleNumber,
+    $discountCents,
+    $discountPercent,
+    $receiptRequested,
+    $receiptTaxId,
+    $printedAt);";
         saleCommand.Parameters.AddWithValue("$id", sale.SaleId.ToString());
         saleCommand.Parameters.AddWithValue("$createdAt", sale.CreatedAt.ToString("O"));
         saleCommand.Parameters.AddWithValue("$totalCents", sale.TotalCents);
-        saleCommand.Parameters.AddWithValue("$paymentMethod", sale.PaymentMethod.ToString());
+        saleCommand.Parameters.AddWithValue("$paymentMethod", GetPaymentCode(sale.PaymentMethod));
         saleCommand.Parameters.AddWithValue("$paymentMethodId", (int)sale.PaymentMethod);
         saleCommand.Parameters.AddWithValue("$receivedAmountCents", (object?)sale.ReceivedAmountCents ?? DBNull.Value);
         saleCommand.Parameters.AddWithValue("$changeAmountCents", sale.ChangeAmountCents);
@@ -39,6 +75,11 @@ VALUES ($id, $createdAt, $totalCents, $paymentMethod, $paymentMethodId, $receive
         saleCommand.Parameters.AddWithValue("$cashRegisterSessionId", (object?)(cashRegisterSessionId ?? sale.CashRegisterSessionId) ?? DBNull.Value);
         saleCommand.Parameters.AddWithValue("$remoteSaleId", (object?)sale.RemoteSaleId ?? DBNull.Value);
         saleCommand.Parameters.AddWithValue("$saleNumber", (object?)sale.SaleNumber ?? DBNull.Value);
+        saleCommand.Parameters.AddWithValue("$discountCents", sale.DiscountCents);
+        saleCommand.Parameters.AddWithValue("$discountPercent", sale.DiscountPercent);
+        saleCommand.Parameters.AddWithValue("$receiptRequested", sale.ReceiptRequested ? 1 : 0);
+        saleCommand.Parameters.AddWithValue("$receiptTaxId", (object?)sale.ReceiptTaxId ?? DBNull.Value);
+        saleCommand.Parameters.AddWithValue("$printedAt", (object?)sale.PrintedAt?.ToString("O") ?? DBNull.Value);
         await saleCommand.ExecuteNonQueryAsync(cancellationToken);
 
         foreach (var item in sale.Items)
@@ -149,7 +190,12 @@ SELECT s.id,
        COALESCE(s.status, 'COMPLETED') AS sale_status,
        s.remote_sale_id,
        s.sale_number,
-       s.cash_register_session_id
+       s.cash_register_session_id,
+       COALESCE(s.discount_percent, 0),
+       COALESCE(s.discount_cents, 0),
+       COALESCE(s.receipt_requested, 0),
+       s.receipt_tax_id,
+       s.printed_at
 FROM sales s
 LEFT JOIN customers c ON c.id = s.customer_id
 LEFT JOIN users u ON u.id = s.operator_id
@@ -177,7 +223,12 @@ LIMIT 1;";
             Status = saleReader.GetString(9),
             RemoteSaleId = saleReader.IsDBNull(10) ? null : saleReader.GetString(10),
             SaleNumber = saleReader.IsDBNull(11) ? (int?)null : saleReader.GetInt32(11),
-            CashRegisterSessionId = saleReader.IsDBNull(12) ? null : saleReader.GetString(12)
+            CashRegisterSessionId = saleReader.IsDBNull(12) ? null : saleReader.GetString(12),
+            DiscountPercent = saleReader.IsDBNull(13) ? 0m : saleReader.GetDecimal(13),
+            DiscountCents = saleReader.IsDBNull(14) ? 0 : saleReader.GetInt32(14),
+            ReceiptRequested = !saleReader.IsDBNull(15) && saleReader.GetInt32(15) == 1,
+            ReceiptTaxId = saleReader.IsDBNull(16) ? null : saleReader.GetString(16),
+            PrintedAt = saleReader.IsDBNull(17) ? (DateTimeOffset?)null : DateTimeOffset.Parse(saleReader.GetString(17), CultureInfo.InvariantCulture)
         };
 
         await saleReader.DisposeAsync();
@@ -232,6 +283,11 @@ ORDER BY si.rowid;";
             RemoteSaleId = saleMetadata.RemoteSaleId,
             SaleNumber = saleMetadata.SaleNumber,
             CashRegisterSessionId = saleMetadata.CashRegisterSessionId,
+            DiscountPercent = saleMetadata.DiscountPercent,
+            DiscountCents = saleMetadata.DiscountCents,
+            ReceiptRequested = saleMetadata.ReceiptRequested,
+            ReceiptTaxId = saleMetadata.ReceiptTaxId,
+            PrintedAt = saleMetadata.PrintedAt,
             Items = items
         };
     }
@@ -254,11 +310,38 @@ WHERE id = $id;";
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task MarkAsPrintedAsync(Guid saleId, DateTimeOffset printedAt, string? receiptTaxId, string? outboxPayloadJson = null, CancellationToken cancellationToken = default)
+    {
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+        using var tx = connection.BeginTransaction();
+
+        var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = @"
+UPDATE sales
+SET printed_at = $printedAt,
+    receipt_requested = 1,
+    receipt_tax_id = COALESCE($receiptTaxId, receipt_tax_id)
+WHERE id = $saleId;";
+        command.Parameters.AddWithValue("$printedAt", printedAt.ToString("O"));
+        command.Parameters.AddWithValue("$receiptTaxId", (object?)receiptTaxId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$saleId", saleId.ToString());
+        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(outboxPayloadJson))
+        {
+            await InsertOutboxEventAsync(connection, tx, "SalePrinted", outboxPayloadJson, cancellationToken);
+        }
+
+        tx.Commit();
+    }
+
     public Task SaveRefundAsync(Guid saleId, string reason, IReadOnlyCollection<SaleRefundItem> items, string? operatorId, CancellationToken cancellationToken = default)
         => SaveRefundInternalAsync(saleId, reason, items, null, operatorId, cancellationToken);
 
-    public async Task SaveRefundWithOutboxAsync(Guid saleId, string reason, IReadOnlyCollection<SaleRefundItem> items, string outboxPayloadJson, string? operatorId, CancellationToken cancellationToken = default)
-        => await SaveRefundInternalAsync(saleId, reason, items, outboxPayloadJson, operatorId, cancellationToken);
+    public Task SaveRefundWithOutboxAsync(Guid saleId, string reason, IReadOnlyCollection<SaleRefundItem> items, string outboxPayloadJson, string? operatorId, CancellationToken cancellationToken = default)
+        => SaveRefundInternalAsync(saleId, reason, items, outboxPayloadJson, operatorId, cancellationToken);
 
     private async Task SaveRefundInternalAsync(
         Guid saleId,
@@ -422,19 +505,26 @@ SELECT
         return refundedQuantity > 0 ? "PARTIALLY_REFUNDED" : "COMPLETED";
     }
 
+    private static string GetPaymentCode(PaymentMethod paymentMethod)
+    {
+        return paymentMethod switch
+        {
+            PaymentMethod.Cash => "cash",
+            PaymentMethod.CreditCard => "credit_card",
+            PaymentMethod.DebitCard => "debit_card",
+            PaymentMethod.Pix => "pix",
+            _ => paymentMethod.ToString().ToLowerInvariant()
+        };
+    }
+
     private static PaymentMethod ParsePaymentMethod(string value)
     {
-        if (Enum.TryParse<PaymentMethod>(value, ignoreCase: true, out var parsed))
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
         {
-            return parsed;
-        }
-
-        return value.ToUpperInvariant() switch
-        {
-            "DINHEIRO" => PaymentMethod.Cash,
-            "CARTAO" => PaymentMethod.Card,
-            "CARTAO " => PaymentMethod.Card,
-            "CARTÃO" => PaymentMethod.Card,
+            "cash" or "dinheiro" => PaymentMethod.Cash,
+            "credit_card" or "credit" or "credito" or "cartao" or "cartão" => PaymentMethod.CreditCard,
+            "debit_card" or "debit" or "debito" or "débito" => PaymentMethod.DebitCard,
             _ => PaymentMethod.Pix
         };
     }

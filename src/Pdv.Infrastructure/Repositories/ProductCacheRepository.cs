@@ -20,7 +20,7 @@ public sealed class ProductCacheRepository : IProductCacheRepository
 
         var command = connection.CreateCommand();
         command.CommandText = @"
-SELECT id, barcode, description, price_cents, active, created_at, updated_at
+SELECT id, sku, barcode, description, price_cents, active, created_at, updated_at
 FROM products
 WHERE barcode = $barcode
 LIMIT 1;";
@@ -38,9 +38,12 @@ LIMIT 1;";
         var command = connection.CreateCommand();
         var like = $"%{query?.Trim() ?? string.Empty}%";
         command.CommandText = @"
-SELECT id, barcode, description, price_cents, active, created_at, updated_at
+SELECT id, sku, barcode, description, price_cents, active, created_at, updated_at
 FROM products
-WHERE $query = '' OR barcode LIKE $like OR description LIKE $like
+WHERE $query = ''
+   OR barcode LIKE $like
+   OR description LIKE $like
+   OR COALESCE(sku, '') LIKE $like
 ORDER BY active DESC, description ASC
 LIMIT 500;";
         command.Parameters.AddWithValue("$query", query?.Trim() ?? string.Empty);
@@ -63,7 +66,7 @@ LIMIT 500;";
 
         var command = connection.CreateCommand();
         command.CommandText = @"
-SELECT id, barcode, description, price_cents, active, created_at, updated_at
+SELECT id, sku, barcode, description, price_cents, active, created_at, updated_at
 FROM products
 WHERE id = $id LIMIT 1;";
         command.Parameters.AddWithValue("$id", id);
@@ -79,8 +82,8 @@ WHERE id = $id LIMIT 1;";
 
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-INSERT INTO products (id, barcode, description, price_cents, active, created_at, updated_at)
-VALUES ($id, $barcode, $description, $priceCents, $active, $createdAt, $updatedAt);";
+INSERT INTO products (id, sku, barcode, description, price_cents, active, created_at, updated_at)
+VALUES ($id, $sku, $barcode, $description, $priceCents, $active, $createdAt, $updatedAt);";
         BindProduct(cmd, product);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -93,7 +96,8 @@ VALUES ($id, $barcode, $description, $priceCents, $active, $createdAt, $updatedA
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"
 UPDATE products
-SET barcode = $barcode,
+SET sku = $sku,
+    barcode = $barcode,
     description = $description,
     price_cents = $priceCents,
     active = $active,
@@ -145,8 +149,8 @@ WHERE id = $id;";
             var cmd = connection.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = @"
-INSERT INTO products (id, barcode, description, price_cents, active, created_at, updated_at)
-VALUES ($id, $barcode, $description, $priceCents, $active, $createdAt, $updatedAt);";
+INSERT INTO products (id, sku, barcode, description, price_cents, active, created_at, updated_at)
+VALUES ($id, $sku, $barcode, $description, $priceCents, $active, $createdAt, $updatedAt);";
             BindProduct(cmd, product);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -157,17 +161,19 @@ VALUES ($id, $barcode, $description, $priceCents, $active, $createdAt, $updatedA
     private static ProductCacheItem ReadProduct(Microsoft.Data.Sqlite.SqliteDataReader reader) => new()
     {
         ProductId = reader.GetString(0),
-        Barcode = reader.GetString(1),
-        Description = reader.GetString(2),
-        PriceCents = reader.GetInt32(3),
-        Active = reader.GetInt32(4) == 1,
-        CreatedAt = DateTimeOffset.Parse(reader.GetString(5)),
-        UpdatedAt = DateTimeOffset.Parse(reader.GetString(6))
+        Sku = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+        Barcode = reader.GetString(2),
+        Description = reader.GetString(3),
+        PriceCents = reader.GetInt32(4),
+        Active = reader.GetInt32(5) == 1,
+        CreatedAt = DateTimeOffset.Parse(reader.GetString(6)),
+        UpdatedAt = DateTimeOffset.Parse(reader.GetString(7))
     };
 
     private static void BindProduct(Microsoft.Data.Sqlite.SqliteCommand cmd, ProductCacheItem product)
     {
         cmd.Parameters.AddWithValue("$id", product.ProductId);
+        cmd.Parameters.AddWithValue("$sku", string.IsNullOrWhiteSpace(product.Sku) ? DBNull.Value : product.Sku);
         cmd.Parameters.AddWithValue("$barcode", product.Barcode);
         cmd.Parameters.AddWithValue("$description", product.Description);
         cmd.Parameters.AddWithValue("$priceCents", product.PriceCents);

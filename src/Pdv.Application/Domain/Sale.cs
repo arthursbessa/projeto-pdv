@@ -15,6 +15,12 @@ public sealed class Sale
     public string? RemoteSaleId { get; init; }
     public int? SaleNumber { get; init; }
     public string? CashRegisterSessionId { get; init; }
+    public decimal DiscountPercent { get; init; }
+    public int DiscountCents { get; init; }
+    public bool ReceiptRequested { get; init; }
+    public string? ReceiptTaxId { get; init; }
+    public DateTimeOffset? PrintedAt { get; init; }
     public IReadOnlyCollection<SaleItem> Items { get; init; } = [];
-    public int TotalCents => Items.Sum(x => x.SubtotalCents);
+    public int SubtotalCents => Items.Sum(x => x.SubtotalCents);
+    public int TotalCents => Math.Max(SubtotalCents - DiscountCents, 0);
 }
