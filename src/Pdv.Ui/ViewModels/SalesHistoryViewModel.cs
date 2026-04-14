@@ -29,6 +29,7 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
     private string _searchText = string.Empty;
     private string _selectedCustomerFilter = "Todos";
     private string _selectedCashierFilter = "Todos";
+    private ProductTextCaseMode _productTextCase = ProductTextCaseMode.Original;
 
     public SalesHistoryViewModel(
         ISalesRepository salesRepository,
@@ -160,6 +161,8 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
+            var settings = await _pdvSettingsRepository.GetCurrentAsync();
+            _productTextCase = settings.ProductTextCase;
             var sales = await _salesRepository.GetHistoryAsync(SelectedDate);
             _allSales.Clear();
 
@@ -173,7 +176,7 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
                     PaymentMethod = sale.PaymentMethod,
                     CustomerName = sale.CustomerName,
                     CashierName = sale.CashierName,
-                    ProductsSummary = sale.ProductsSummary,
+                    ProductsSummary = ProductTextFormatter.Format(sale.ProductsSummary, _productTextCase),
                     Status = sale.Status,
                     TotalCents = sale.TotalCents,
                     ReceivedAmountCents = sale.ReceivedAmountCents,
@@ -252,7 +255,7 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
             {
                 SaleItemId = item.SaleItemId,
                 ProductId = item.ProductId,
-                Description = item.Description,
+                Description = ProductTextFormatter.Format(item.Description, _productTextCase),
                 Quantity = quantity
             });
         }
@@ -371,7 +374,7 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
                     SaleItemId = item.SaleItemId ?? string.Empty,
                     ProductId = item.ProductId,
                     Barcode = item.Barcode,
-                    Description = item.Description,
+                    Description = ProductTextFormatter.Format(item.Description, _productTextCase),
                     Quantity = item.Quantity,
                     RefundedQuantity = item.RefundedQuantity,
                     RemainingQuantity = item.RemainingRefundQuantity,

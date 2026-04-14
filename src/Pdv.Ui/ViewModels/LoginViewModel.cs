@@ -22,6 +22,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private string _statusMessage = "Informe as credenciais do operador.";
     private bool _isBusy;
     private string _storeName = "Sua loja";
+    private string _terminalName = string.Empty;
     private string _storeDocument = "CNPJ nao informado";
     private string _storeAddress = "Endereco nao informado";
     private string _storeLogoPath = string.Empty;
@@ -53,6 +54,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
     public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
     public string StoreName { get => _storeName; private set => SetField(ref _storeName, value); }
+    public string TerminalName { get => _terminalName; private set => SetField(ref _terminalName, value); }
     public string StoreDocument { get => _storeDocument; private set => SetField(ref _storeDocument, value); }
     public string StoreAddress { get => _storeAddress; private set => SetField(ref _storeAddress, value); }
     public string StoreLogoPath { get => _storeLogoPath; private set => SetField(ref _storeLogoPath, value); }
@@ -143,6 +145,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         }
 
         StoreName = string.IsNullOrWhiteSpace(store.StoreName) ? "Sua loja" : store.StoreName;
+        TerminalName = string.IsNullOrWhiteSpace(store.TerminalName) ? "-" : store.TerminalName;
         StoreDocument = string.IsNullOrWhiteSpace(store.Cnpj) ? "CNPJ nao informado" : $"CNPJ: {store.Cnpj}";
         StoreAddress = string.IsNullOrWhiteSpace(store.Address) ? "Endereco nao informado" : store.Address;
         StoreLogoPath = store.LogoLocalPath;

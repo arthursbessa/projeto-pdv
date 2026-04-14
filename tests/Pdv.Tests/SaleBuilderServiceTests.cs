@@ -45,6 +45,7 @@ public sealed class SaleBuilderServiceTests
         public Task<ProductCacheItem?> FindByIdAsync(string id, CancellationToken cancellationToken = default) => Task.FromResult<ProductCacheItem?>(null);
         public Task AddAsync(ProductCacheItem product, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpdateAsync(ProductCacheItem product, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteAsync(string id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task ToggleActiveAsync(string id, bool active, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<int> CountAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
         public Task SeedIfEmptyAsync(IEnumerable<ProductCacheItem> products, CancellationToken cancellationToken = default) => Task.CompletedTask;

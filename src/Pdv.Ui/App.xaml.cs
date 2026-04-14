@@ -60,6 +60,8 @@ public partial class App : System.Windows.Application
             .AddTransient<MenuViewModel>()
             .AddTransient<ProductLookupViewModel>()
             .AddTransient<ProductsViewModel>()
+            .AddTransient<CreateCategoryViewModel>()
+            .AddTransient<CreateSupplierViewModel>()
             .AddTransient<CustomerLookupViewModel>()
             .AddTransient<CreateCustomerViewModel>()
             .AddTransient<SalesHistoryViewModel>()

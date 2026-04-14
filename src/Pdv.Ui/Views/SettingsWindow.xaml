@@ -62,6 +62,24 @@
 
                 <Border Margin="0,18,0,0" Padding="18" Background="White" BorderBrush="#D7E2F0" BorderThickness="1.2" CornerRadius="16">
                     <StackPanel>
+                        <TextBlock Text="Exibicao de produtos" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                        <TextBlock Margin="0,14,0,6" Text="Define como os nomes dos produtos aparecem no PDV." FontWeight="SemiBold"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0"
+                                      HorizontalAlignment="Left"
+                                      ItemsSource="{Binding AvailableProductTextCases}"
+                                      SelectedItem="{Binding ProductTextCaseInput}"
+                                      Width="220"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,18,0,0" Padding="18" Background="White" BorderBrush="#D7E2F0" BorderThickness="1.2" CornerRadius="16">
+                    <StackPanel>
                         <TextBlock Text="Desconto default" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
                         <TextBlock Margin="0,14,0,6" Text="Percentual inicial aplicado na tela de finalizar venda" FontWeight="SemiBold"/>
                         <TextBox Width="160" Text="{Binding DefaultDiscountPercentInput}" HorizontalAlignment="Left"/>

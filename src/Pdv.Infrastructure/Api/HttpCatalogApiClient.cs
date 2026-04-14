@@ -82,6 +82,13 @@ public sealed class HttpCatalogApiClient : ICatalogApiClient
                 Sku = item.TryGetProperty("sku", out var skuEl) ? skuEl.GetString() ?? string.Empty : string.Empty,
                 Barcode = barcode,
                 Description = name,
+                CategoryId = item.TryGetProperty("category_id", out var categoryIdEl) ? categoryIdEl.GetString() : null,
+                SupplierId = item.TryGetProperty("supplier_id", out var supplierIdEl) ? supplierIdEl.GetString() : null,
+                Ncm = item.TryGetProperty("ncm", out var ncmEl) ? ncmEl.GetString() : null,
+                Cfop = item.TryGetProperty("cfop", out var cfopEl) ? cfopEl.GetString() : null,
+                CostPriceCents = item.TryGetProperty("cost_price", out var costPriceEl) && costPriceEl.TryGetDecimal(out var costPrice)
+                    ? (int)Math.Round(costPrice * 100m, MidpointRounding.AwayFromZero)
+                    : 0,
                 PriceCents = (int)Math.Round(priceDecimal * 100m, MidpointRounding.AwayFromZero),
                 Active = active,
                 CreatedAt = now,

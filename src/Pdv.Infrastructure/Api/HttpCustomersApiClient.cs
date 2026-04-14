@@ -76,6 +76,41 @@ public sealed class HttpCustomersApiClient : ICustomersApiClient
 
     public async Task<CustomerRecord> CreateCustomerAsync(CustomerRecord customer, CancellationToken cancellationToken = default)
     {
+        return await SendAsync(HttpMethod.Post, customer, cancellationToken);
+    }
+
+    public Task<CustomerRecord> UpdateCustomerAsync(CustomerRecord customer, CancellationToken cancellationToken = default)
+        => SendAsync(HttpMethod.Put, customer, cancellationToken);
+
+    public async Task DeleteCustomerAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_options.FunctionsBaseUrl) || string.IsNullOrWhiteSpace(_options.TerminalToken))
+        {
+            throw new InvalidOperationException("Configuracao de clientes do PDV incompleta.");
+        }
+
+        var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-customers";
+        var payload = JsonSerializer.Serialize(new { id = customerId });
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, endpoint)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        PdvApiRequestHeaders.Apply(request, _options);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var exception = new HttpRequestException(
+                $"Falha ao excluir cliente no PDV em '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}");
+            _errorLogger.LogError("Falha ao excluir cliente no PDV", exception);
+            throw exception;
+        }
+    }
+
+    private async Task<CustomerRecord> SendAsync(HttpMethod method, CustomerRecord customer, CancellationToken cancellationToken)
+    {
         if (string.IsNullOrWhiteSpace(_options.FunctionsBaseUrl) || string.IsNullOrWhiteSpace(_options.TerminalToken))
         {
             throw new InvalidOperationException("Configuracao de clientes do PDV incompleta.");
@@ -84,6 +119,7 @@ public sealed class HttpCustomersApiClient : ICustomersApiClient
         var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-customers";
         var payload = JsonSerializer.Serialize(new
         {
+            id = customer.Id,
             name = customer.Name,
             cpf = customer.Cpf,
             phone = customer.Phone,
@@ -92,7 +128,7 @@ public sealed class HttpCustomersApiClient : ICustomersApiClient
             notes = customer.Notes
         });
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        using var request = new HttpRequestMessage(method, endpoint)
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
@@ -103,15 +139,15 @@ public sealed class HttpCustomersApiClient : ICustomersApiClient
         if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.Conflict)
         {
             var exception = new HttpRequestException(
-                $"Falha ao criar cliente no PDV em '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}");
-            _errorLogger.LogError("Falha ao criar cliente no PDV", exception);
+                $"Falha ao salvar cliente no PDV em '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}");
+            _errorLogger.LogError("Falha ao salvar cliente no PDV", exception);
             throw exception;
         }
 
         using var doc = JsonDocument.Parse(responseBody);
         if (!doc.RootElement.TryGetProperty("customer", out var customerElement))
         {
-            throw new InvalidOperationException("Resposta invalida ao criar cliente: objeto 'customer' ausente.");
+            throw new InvalidOperationException("Resposta invalida ao salvar cliente: objeto 'customer' ausente.");
         }
 
         return ParseCustomer(customerElement);

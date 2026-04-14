@@ -63,6 +63,7 @@ public sealed class HttpStoreSettingsApiClient : IStoreSettingsApiClient
 
         return new StoreSettings
         {
+            TerminalName = doc.RootElement.TryGetProperty("terminal", out var terminalEl) ? terminalEl.GetString() ?? string.Empty : string.Empty,
             StoreName = settings.TryGetProperty("store_name", out var nameEl) ? nameEl.GetString() ?? "LOJA" : "LOJA",
             Cnpj = settings.TryGetProperty("cnpj", out var cnpjEl) ? cnpjEl.GetString() ?? string.Empty : string.Empty,
             Address = settings.TryGetProperty("address", out var addressEl) ? addressEl.GetString() ?? string.Empty : string.Empty,

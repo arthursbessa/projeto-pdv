@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Xps;
 using Pdv.Application.Domain;
+using Pdv.Ui.Formatting;
 
 namespace Pdv.Ui.Services;
 
@@ -15,7 +16,7 @@ public static class FiscalCouponPrinter
 {
     public static bool Print(Window owner, Sale sale, string? receiptTaxId, StoreSettings? storeSettings, PdvSettings pdvSettings)
     {
-        var document = BuildFiscalCouponDocument(sale, receiptTaxId, 280, storeSettings);
+        var document = BuildFiscalCouponDocument(sale, receiptTaxId, 280, storeSettings, pdvSettings);
 
         if (pdvSettings.AskPrinterBeforePrint || string.IsNullOrWhiteSpace(pdvSettings.PreferredPrinterName))
         {
@@ -48,9 +49,9 @@ public static class FiscalCouponPrinter
         return true;
     }
 
-    private static FlowDocument BuildFiscalCouponDocument(Sale sale, string? receiptTaxId, double printableAreaWidth, StoreSettings? storeSettings)
+    private static FlowDocument BuildFiscalCouponDocument(Sale sale, string? receiptTaxId, double printableAreaWidth, StoreSettings? storeSettings, PdvSettings pdvSettings)
     {
-        var cupomText = BuildFiscalCouponText(sale, receiptTaxId, storeSettings);
+        var cupomText = BuildFiscalCouponText(sale, receiptTaxId, storeSettings, pdvSettings);
         var document = new FlowDocument
         {
             FontFamily = new FontFamily("Consolas"),
@@ -119,7 +120,7 @@ public static class FiscalCouponPrinter
         return blackAndWhite;
     }
 
-    private static string BuildFiscalCouponText(Sale sale, string? receiptTaxId, StoreSettings? storeSettings)
+    private static string BuildFiscalCouponText(Sale sale, string? receiptTaxId, StoreSettings? storeSettings, PdvSettings pdvSettings)
     {
         const int width = 44;
         var sb = new StringBuilder();
@@ -143,9 +144,10 @@ public static class FiscalCouponPrinter
         var index = 1;
         foreach (var item in sale.Items)
         {
-            var description = item.Description.Length > 16
-                ? item.Description[..16]
-                : item.Description;
+            var productDescription = ProductTextFormatter.Format(item.Description, pdvSettings.ProductTextCase);
+            var description = productDescription.Length > 16
+                ? productDescription[..16]
+                : productDescription;
 
             var line = string.Format("{0:000} {1,-11} {2,-16} {3,8}",
                 index,

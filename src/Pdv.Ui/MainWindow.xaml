@@ -281,7 +281,7 @@
                                     </DataGrid.Resources>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Codigo" Binding="{Binding Barcode}" Width="150" IsReadOnly="True"/>
-                                        <DataGridTextColumn Header="Descricao" Binding="{Binding Description}" Width="*" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Descricao" Binding="{Binding DisplayDescription}" Width="*" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="Qtd" Binding="{Binding Quantity}" Width="90" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="Preco" Binding="{Binding Price, StringFormat=R$ {0:N2}}" Width="110" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="Subtotal" Binding="{Binding Subtotal, StringFormat=R$ {0:N2}}" Width="115" IsReadOnly="True"/>

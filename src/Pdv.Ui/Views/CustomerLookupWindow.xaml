@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:Pdv.Ui.Converters"
         Title="Buscar cliente"
-        Height="640"
-        Width="980"
+        Height="560"
+        Width="860"
         WindowStartupLocation="CenterOwner"
         Background="#F8FAFC"
         KeyDown="Window_KeyDown">
@@ -36,11 +36,11 @@
                      Padding="12,0"
                      Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"/>
             <Button Grid.Column="1"
-                    Content="Cadastrar cliente"
+                    Content="Novo cliente"
                     Margin="12,0,0,0"
                     Padding="16,10"
-                    Background="#7C3AED"
-                    BorderBrush="#7C3AED"
+                    Background="#64748B"
+                    BorderBrush="#64748B"
                     Click="CreateCustomer_Click"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
             <Button Grid.Column="2"
@@ -64,6 +64,20 @@
                     <DataGridTextColumn Header="CPF" Binding="{Binding Cpf}" Width="180"/>
                     <DataGridTextColumn Header="Telefone" Binding="{Binding Phone}" Width="170"/>
                     <DataGridTextColumn Header="E-mail" Binding="{Binding Email}" Width="220"/>
+                    <DataGridTemplateColumn Header="Ações" Width="72">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="✎"
+                                        Width="28"
+                                        Height="28"
+                                        Padding="0"
+                                        Background="#7C3AED"
+                                        Foreground="White"
+                                        BorderBrush="#7C3AED"
+                                        Click="EditCustomer_Click"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Border>

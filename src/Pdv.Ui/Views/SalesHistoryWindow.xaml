@@ -70,7 +70,6 @@
                       SelectionMode="Single"
                       MouseDoubleClick="SalesDataGrid_MouseDoubleClick">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Id venda" Binding="{Binding SaleIdentifier}" Width="220"/>
                     <DataGridTextColumn Header="Cliente" Binding="{Binding CustomerName}" Width="200"/>
                     <DataGridTextColumn Header="Data" Binding="{Binding DateText}" Width="150"/>
                     <DataGridTextColumn Header="Produto(s)" Binding="{Binding ProductsSummary}" Width="*"/>

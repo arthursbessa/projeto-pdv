@@ -21,6 +21,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     private string _statusMessage = "Gerencie seu caixa e modulos.";
     private bool _isBusy;
     private string _storeName = "Minha Loja";
+    private string _terminalName = string.Empty;
     private string _storeLogoPath = string.Empty;
     private int _lastClosedCashBalanceCents;
     private int _currentCashBalanceCents;
@@ -49,6 +50,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
     public string StatusMessage { get => _statusMessage; set => SetField(ref _statusMessage, value); }
     public bool IsBusy { get => _isBusy; set => SetField(ref _isBusy, value); }
     public string StoreName { get => _storeName; set => SetField(ref _storeName, value); }
+    public string TerminalName { get => _terminalName; set => SetField(ref _terminalName, value); }
     public string StoreLogoPath { get => _storeLogoPath; set => SetField(ref _storeLogoPath, value); }
     public int LastClosedCashBalanceCents { get => _lastClosedCashBalanceCents; private set => SetField(ref _lastClosedCashBalanceCents, value); }
     public string LastClosedCashBalance => MoneyFormatter.FormatFromCents(LastClosedCashBalanceCents);
@@ -72,6 +74,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         if (settings is not null)
         {
             StoreName = settings.StoreName;
+            TerminalName = string.IsNullOrWhiteSpace(settings.TerminalName) ? "-" : settings.TerminalName;
             StoreLogoPath = settings.LogoLocalPath;
         }
 
@@ -108,6 +111,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
             if (settings is not null)
             {
                 StoreName = settings.StoreName;
+                TerminalName = string.IsNullOrWhiteSpace(settings.TerminalName) ? "-" : settings.TerminalName;
                 StoreLogoPath = settings.LogoLocalPath;
             }
 

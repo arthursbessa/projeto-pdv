@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using Pdv.Application.Domain;
 using Pdv.Ui.Formatting;
@@ -16,13 +15,11 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
     private string _receivedAmountInput = string.Empty;
     private string _cashValidationMessage = string.Empty;
     private int _totalCents;
-    private bool _isCashSelected = true;
-    private int _currentStep = 1;
+    private bool _isCashSelected;
     private string _discountPercentInput = "0";
-    private string _selectedCustomerDisplay = "Nenhum cliente selecionado";
+    private string _selectedCustomerDisplay = "Nenhum cliente vinculado";
     private string? _selectedCustomerId;
     private string? _selectedCustomerName;
-    private bool _hasCustomer = false;
 
     public FinalizeSaleWindow()
     {
@@ -39,11 +36,17 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
                 OnPropertyChanged(nameof(SubtotalFormatted));
                 OnPropertyChanged(nameof(TotalWithDiscountFormatted));
                 OnPropertyChanged(nameof(DiscountPreviewFormatted));
-                ReceivedAmountInput = (TotalWithDiscountCents / 100m).ToString("F2");
+                OnPropertyChanged(nameof(DiscountButtonText));
+                OnPropertyChanged(nameof(CustomerButtonText));
             }
 
-            DiscountTextBox.Focus();
-            DiscountTextBox.SelectAll();
+            CashOption.IsChecked = false;
+            PixOption.IsChecked = false;
+            CreditCardOption.IsChecked = false;
+            DebitCardOption.IsChecked = false;
+            IsCashSelected = false;
+            CashValidationMessage = string.Empty;
+            ReceivedAmountInput = string.Empty;
         };
     }
 
@@ -78,7 +81,11 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
                 OnPropertyChanged(nameof(DiscountPreviewFormatted));
                 OnPropertyChanged(nameof(TotalWithDiscountFormatted));
                 OnPropertyChanged(nameof(TotalWithDiscountCents));
-                // Recalcula troco com o novo desconto
+                OnPropertyChanged(nameof(DiscountButtonText));
+                if (IsCashSelected)
+                {
+                    ReceivedAmountInput = (TotalWithDiscountCents / 100m).ToString("F2");
+                }
                 UpdateCashPreview();
             }
         }
@@ -135,50 +142,7 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
         private set => SetField(ref _cashValidationMessage, value);
     }
 
-    public int CurrentStep
-    {
-        get => _currentStep;
-        private set
-        {
-            if (SetField(ref _currentStep, value))
-            {
-                OnPropertyChanged(nameof(IsStepOneVisible));
-                OnPropertyChanged(nameof(IsStepTwoVisible));
-                OnPropertyChanged(nameof(StepOneForeground));
-                OnPropertyChanged(nameof(StepTwoForeground));
-                OnPropertyChanged(nameof(PrimaryActionText));
-                OnPropertyChanged(nameof(IsBackVisible));
-                OnPropertyChanged(nameof(Step1DotColor));
-                OnPropertyChanged(nameof(Step2DotColor));
-                OnPropertyChanged(nameof(StepLabel));
-            }
-        }
-    }
-
-    public bool IsStepOneVisible => CurrentStep == 1;
-    public bool IsStepTwoVisible => CurrentStep == 2;
-    public bool IsBackVisible => CurrentStep > 1;
-
-    public Brush StepOneForeground => CurrentStep == 1 ? Brushes.White : new SolidColorBrush(Color.FromRgb(15, 23, 42));
-    public Brush StepTwoForeground => CurrentStep == 2 ? Brushes.White : new SolidColorBrush(Color.FromRgb(15, 23, 42));
-
-    private static readonly Brush DotActive = new SolidColorBrush(Color.FromRgb(31, 95, 191));
-    private static readonly Brush DotDone = new SolidColorBrush(Color.FromRgb(147, 197, 253));
-    private static readonly Brush DotIdle = new SolidColorBrush(Color.FromRgb(203, 213, 225));
-
-    public Brush Step1DotColor => CurrentStep >= 1 ? (CurrentStep == 1 ? DotActive : DotDone) : DotIdle;
-    public Brush Step2DotColor => CurrentStep >= 2 ? (CurrentStep == 2 ? DotActive : DotDone) : DotIdle;
-    public string StepLabel => CurrentStep switch
-    {
-        1 => "Desconto",
-        _ => "Pagamento"
-    };
-
-    public string PrimaryActionText => CurrentStep switch
-    {
-        1 => "Proximo",
-        _ => "Finalizar venda"
-    };
+    public bool ShowBackButton => false;
 
     public string SelectedCustomerDisplay
     {
@@ -186,20 +150,16 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
         private set => SetField(ref _selectedCustomerDisplay, value);
     }
 
-    public bool HasCustomer
-    {
-        get => _hasCustomer;
-        private set => SetField(ref _hasCustomer, value);
-    }
+    public string DiscountButtonText => $"Desconto {DiscountPercentInput.Trim()}%";
+    public string CustomerButtonText => string.IsNullOrWhiteSpace(_selectedCustomerId) ? "Cliente" : "Alterar cliente";
 
     private void PaymentOption_Checked(object sender, RoutedEventArgs e)
     {
-        IsCashSelected = sender == CashOption;
+        IsCashSelected = CashOption.IsChecked == true;
         CashValidationMessage = string.Empty;
 
         if (IsCashSelected)
         {
-            // Atualiza o valor sugerido com o total já com desconto
             ReceivedAmountInput = (TotalWithDiscountCents / 100m).ToString("F2");
             Dispatcher.BeginInvoke(() =>
             {
@@ -219,24 +179,47 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
 
     private async void PrimaryAction_Click(object sender, RoutedEventArgs e)
     {
-        if (CurrentStep == 1)
+        if (Owner?.DataContext is not MainViewModel vm)
         {
-            if (!ValidateDiscount())
-            {
-                return;
-            }
-
-            CurrentStep = 2;
             return;
         }
 
-        if (CurrentStep == 2)
+        if (!TryGetSelectedPaymentMethod(out var paymentMethod))
         {
-            if (IsCashSelected && !ValidateCashAmount().HasValue)
-            {
-                return;
-            }
+            MessageBox.Show(this, "Selecione uma forma de pagamento.");
+            return;
+        }
 
+        if (paymentMethod == PaymentMethod.Cash && !ValidateCashAmount().HasValue)
+        {
+            return;
+        }
+
+        if (!decimal.TryParse(
+                DiscountPercentInput.Replace(",", "."),
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var discountPercent))
+        {
+            MessageBox.Show(this, "Informe um desconto percentual valido.");
+            return;
+        }
+
+        var receiptDecision = new ReceiptDecisionWindow
+        {
+            Owner = this
+        };
+
+        if (receiptDecision.ShowDialog() != true)
+        {
+            return;
+        }
+
+        string? receiptTaxId = null;
+        var receiptRequested = receiptDecision.PrintReceipt;
+
+        if (receiptRequested)
+        {
             var receiptPrompt = new ReceiptPromptWindow
             {
                 Owner = this
@@ -247,76 +230,90 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
                 return;
             }
 
-            if (Owner?.DataContext is not MainViewModel vm)
+            receiptTaxId = receiptPrompt.ReceiptTaxId;
+        }
+
+        var request = new SaleCheckoutRequest
+        {
+            PaymentMethod = paymentMethod,
+            ReceivedAmountCents = paymentMethod == PaymentMethod.Cash ? ValidateCashAmount() : null,
+            CustomerId = _selectedCustomerId,
+            CustomerName = _selectedCustomerName,
+            DiscountPercent = discountPercent,
+            ReceiptRequested = receiptRequested,
+            ReceiptTaxId = receiptTaxId
+        };
+
+        if (paymentMethod == PaymentMethod.Cash && !request.ReceivedAmountCents.HasValue)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            CompletedSale = await vm.FinalizeAsync(request);
+            if (CompletedSale is null)
             {
                 return;
             }
 
-            if (!decimal.TryParse(
-                    DiscountPercentInput.Replace(",", "."),
-                    System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    out var discountPercent))
-            {
-                MessageBox.Show(this, "Informe um desconto percentual valido.");
-                return;
-            }
-
-            var paymentMethod = CashOption.IsChecked == true
-                ? PaymentMethod.Cash
-                : CreditCardOption.IsChecked == true
-                    ? PaymentMethod.CreditCard
-                    : DebitCardOption.IsChecked == true
-                        ? PaymentMethod.DebitCard
-                        : PaymentMethod.Pix;
-
-            var request = new SaleCheckoutRequest
-            {
-                PaymentMethod = paymentMethod,
-                ReceivedAmountCents = paymentMethod == PaymentMethod.Cash ? ValidateCashAmount() : null,
-                CustomerId = _selectedCustomerId,
-                CustomerName = _selectedCustomerName,
-                DiscountPercent = discountPercent,
-                ReceiptRequested = receiptPrompt.PrintReceipt,
-                ReceiptTaxId = receiptPrompt.ReceiptTaxId
-            };
-
-            if (paymentMethod == PaymentMethod.Cash && !request.ReceivedAmountCents.HasValue)
-            {
-                return;
-            }
-
-            IsBusy = true;
-            try
-            {
-                CompletedSale = await vm.FinalizeAsync(request);
-                if (CompletedSale is null)
-                {
-                    return;
-                }
-
-                PrintedTaxId = request.ReceiptTaxId;
-                DialogResult = true;
-                Close();
-            }
-            finally
-            {
-                IsBusy = false;
-            }
+            PrintedTaxId = request.ReceiptTaxId;
+            DialogResult = true;
+            Close();
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
-    private void Back_Click(object sender, RoutedEventArgs e)
+    private void Discount_Click(object sender, RoutedEventArgs e)
     {
         if (IsBusy)
         {
             return;
         }
 
-        if (CurrentStep > 1)
+        var prompt = new DiscountPromptWindow(DiscountPercentInput)
         {
-            CurrentStep--;
+            Owner = this
+        };
+
+        if (prompt.ShowDialog() == true)
+        {
+            DiscountPercentInput = prompt.DiscountPercent.ToString("0.##");
         }
+    }
+
+    private void SelectCustomer_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        var lookup = new CustomerLookupWindow
+        {
+            Owner = this,
+            Title = "Vincular cliente",
+            DataContext = App.Services.GetRequiredService<CustomerLookupViewModel>()
+        };
+
+        if (lookup.ShowDialog() == true && lookup.SelectedCustomer is not null)
+        {
+            _selectedCustomerId = lookup.SelectedCustomer.Id;
+            _selectedCustomerName = lookup.SelectedCustomer.Name;
+            SelectedCustomerDisplay = string.IsNullOrWhiteSpace(lookup.SelectedCustomer.Cpf)
+                ? lookup.SelectedCustomer.Name
+                : $"{lookup.SelectedCustomer.Name} - {lookup.SelectedCustomer.Cpf}";
+            OnPropertyChanged(nameof(CustomerButtonText));
+        }
+    }
+
+    private void Back_Click(object sender, RoutedEventArgs e)
+    {
+        // Mantido apenas por compatibilidade do XAML. Nao ha segunda etapa.
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -344,33 +341,6 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void SelectCustomer_Click(object sender, RoutedEventArgs e)
-    {
-        var lookup = new CustomerLookupWindow
-        {
-            Owner = this,
-            DataContext = App.Services.GetRequiredService<CustomerLookupViewModel>()
-        };
-
-        if (lookup.ShowDialog() == true && lookup.SelectedCustomer is not null)
-        {
-            _selectedCustomerId = lookup.SelectedCustomer.Id;
-            _selectedCustomerName = lookup.SelectedCustomer.Name;
-            SelectedCustomerDisplay = string.IsNullOrWhiteSpace(lookup.SelectedCustomer.Cpf)
-                ? lookup.SelectedCustomer.Name
-                : $"{lookup.SelectedCustomer.Name} - {lookup.SelectedCustomer.Cpf}";
-            HasCustomer = true;
-        }
-    }
-
-    private void ClearCustomer_Click(object sender, RoutedEventArgs e)
-    {
-        _selectedCustomerId = null;
-        _selectedCustomerName = null;
-        SelectedCustomerDisplay = "Nenhum cliente selecionado";
-        HasCustomer = false;
-    }
-
     private void UpdateCashPreview()
     {
         OnPropertyChanged(nameof(ChangeFormatted));
@@ -383,25 +353,34 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
         _ = ValidateCashAmount();
     }
 
-    private bool ValidateDiscount()
+    private bool TryGetSelectedPaymentMethod(out PaymentMethod paymentMethod)
     {
-        if (!decimal.TryParse(
-                DiscountPercentInput.Replace(",", "."),
-                System.Globalization.NumberStyles.Any,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var percent))
+        if (CashOption.IsChecked == true)
         {
-            MessageBox.Show(this, "Informe um valor de desconto valido (ex: 0, 5, 10).");
-            return false;
+            paymentMethod = PaymentMethod.Cash;
+            return true;
         }
 
-        if (percent < 0 || percent > 100)
+        if (PixOption.IsChecked == true)
         {
-            MessageBox.Show(this, "O desconto deve ser entre 0% e 100%.");
-            return false;
+            paymentMethod = PaymentMethod.Pix;
+            return true;
         }
 
-        return true;
+        if (CreditCardOption.IsChecked == true)
+        {
+            paymentMethod = PaymentMethod.CreditCard;
+            return true;
+        }
+
+        if (DebitCardOption.IsChecked == true)
+        {
+            paymentMethod = PaymentMethod.DebitCard;
+            return true;
+        }
+
+        paymentMethod = default;
+        return false;
     }
 
     private int? ValidateCashAmount()

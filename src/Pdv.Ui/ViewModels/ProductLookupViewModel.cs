@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
+using Pdv.Application.Domain;
 using Pdv.Ui.Formatting;
 using Pdv.Ui.Services;
 
@@ -11,19 +12,23 @@ public sealed class ProductLookupViewModel : INotifyPropertyChanged
 {
     private readonly ICatalogApiClient _catalogApiClient;
     private readonly IProductCacheRepository _productCacheRepository;
+    private readonly IPdvSettingsRepository _pdvSettingsRepository;
     private readonly IErrorFileLogger _errorLogger;
     private string _query = string.Empty;
     private ProductLookupItemViewModel? _selectedProduct;
     private string _statusMessage = "Carregando produtos...";
     private bool _isBusy;
+    private ProductTextCaseMode _productTextCase = ProductTextCaseMode.Original;
 
     public ProductLookupViewModel(
         ICatalogApiClient catalogApiClient,
         IProductCacheRepository productCacheRepository,
+        IPdvSettingsRepository pdvSettingsRepository,
         IErrorFileLogger errorLogger)
     {
         _catalogApiClient = catalogApiClient;
         _productCacheRepository = productCacheRepository;
+        _pdvSettingsRepository = pdvSettingsRepository;
         _errorLogger = errorLogger;
     }
 
@@ -69,6 +74,9 @@ public sealed class ProductLookupViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
+            var settings = await _pdvSettingsRepository.GetCurrentAsync();
+            _productTextCase = settings.ProductTextCase;
+
             try
             {
                 var remoteProducts = await _catalogApiClient.GetCatalogAsync();
@@ -108,15 +116,15 @@ public sealed class ProductLookupViewModel : INotifyPropertyChanged
 
         foreach (var product in products.Where(p => p.Active))
         {
-            Products.Add(new ProductLookupItemViewModel
-            {
-                Id = product.ProductId,
-                Barcode = product.Barcode,
-                Description = product.Description,
-                PriceCents = product.PriceCents,
-                PriceFormatted = MoneyFormatter.FormatFromCents(product.PriceCents)
-            });
-        }
+                Products.Add(new ProductLookupItemViewModel
+                {
+                    Id = product.ProductId,
+                    Barcode = product.Barcode,
+                    Description = ProductTextFormatter.Format(product.Description, _productTextCase),
+                    PriceCents = product.PriceCents,
+                    PriceFormatted = MoneyFormatter.FormatFromCents(product.PriceCents)
+                });
+            }
 
         StatusMessage = Products.Count == 0
             ? "Nenhum produto encontrado."

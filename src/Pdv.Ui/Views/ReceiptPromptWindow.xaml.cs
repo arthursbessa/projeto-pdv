@@ -11,28 +11,10 @@ public partial class ReceiptPromptWindow : Window
     public ReceiptPromptWindow()
     {
         InitializeComponent();
-        Loaded += (_, _) => PrintReceiptCheckBox.Focus();
+        Loaded += (_, _) => TaxIdTextBox.Focus();
     }
-
-    public bool PrintReceipt { get; private set; }
 
     public string? ReceiptTaxId { get; private set; }
-
-    private void PrintReceiptCheckBox_Changed(object sender, RoutedEventArgs e)
-    {
-        if (PrintReceiptCheckBox.IsChecked == true)
-        {
-            Dispatcher.BeginInvoke(() =>
-            {
-                TaxIdTextBox.Focus();
-                TaxIdTextBox.SelectAll();
-            });
-        }
-        else
-        {
-            TaxIdTextBox.Clear();
-        }
-    }
 
     private void TaxIdTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
@@ -58,17 +40,14 @@ public partial class ReceiptPromptWindow : Window
 
     private void Confirm_Click(object sender, RoutedEventArgs e)
     {
-        var printReceipt = PrintReceiptCheckBox.IsChecked == true;
         var digits = ExtractDigits(TaxIdTextBox.Text);
-
-        if (printReceipt && digits.Length is not 0 and not 11 and not 14)
+        if (digits.Length is not 0 and not 11 and not 14)
         {
             MessageBox.Show(this, "Informe um CPF com 11 digitos ou um CNPJ com 14 digitos.");
             return;
         }
 
-        PrintReceipt = printReceipt;
-        ReceiptTaxId = printReceipt && digits.Length > 0 ? FormatDocument(digits) : null;
+        ReceiptTaxId = digits.Length > 0 ? FormatDocument(digits) : null;
         DialogResult = true;
         Close();
     }

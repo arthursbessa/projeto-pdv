@@ -8,6 +8,13 @@ public partial class CreateCustomerWindow : Window
     public CreateCustomerWindow()
     {
         InitializeComponent();
+        Loaded += (_, _) =>
+        {
+            if (DataContext is CreateCustomerViewModel vm && !vm.IsEditMode)
+            {
+                vm.New();
+            }
+        };
     }
 
     public CreateCustomerViewModel? ViewModel => DataContext as CreateCustomerViewModel;
@@ -20,6 +27,20 @@ public partial class CreateCustomerWindow : Window
         }
 
         if (await ViewModel.SaveAsync())
+        {
+            DialogResult = true;
+            Close();
+        }
+    }
+
+    private async void Delete_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        if (await ViewModel.DeleteAsync())
         {
             DialogResult = true;
             Close();

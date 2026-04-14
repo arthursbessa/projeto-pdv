@@ -62,6 +62,7 @@ public partial class ProductLookupWindow : Window
     private async void CreateProduct_Click(object sender, RoutedEventArgs e)
     {
         var vm = App.Services.GetRequiredService<ProductsViewModel>();
+        vm.New();
         var window = new ProductsWindow
         {
             Owner = this,
@@ -77,13 +78,13 @@ public partial class ProductLookupWindow : Window
 
     private async void EditProduct_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not ProductLookupViewModel lookupVm || lookupVm.SelectedProduct is null)
+        if (sender is not FrameworkElement element || element.DataContext is not ProductLookupItemViewModel item)
         {
             return;
         }
 
         var vm = App.Services.GetRequiredService<ProductsViewModel>();
-        await vm.OpenExistingAsync(lookupVm.SelectedProduct.Id);
+        await vm.OpenExistingAsync(item.Id);
         var window = new ProductsWindow
         {
             Owner = this,

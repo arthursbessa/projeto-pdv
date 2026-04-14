@@ -33,6 +33,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private SaleItem? _selectedItem;
     private bool _isBusy;
     private string _lastScannedDescription = "Aguardando leitura de produto";
+    private string _lastScannedDescriptionRaw = string.Empty;
     private string _lastScannedBarcode = "-";
     private int _lastScannedPriceCents;
     private int _lastScannedQuantity;
@@ -182,6 +183,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
         OnPropertyChanged(nameof(DefaultDiscountPercent));
+        RefreshDisplayedProductTexts();
         await LoadStoreSettingsAsync();
     }
 
@@ -200,6 +202,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
         OnPropertyChanged(nameof(DefaultDiscountPercent));
+        RefreshDisplayedProductTexts();
     }
 
     public bool MatchesShortcut(Key key, string configuredShortcut)
@@ -276,6 +279,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         ReplaceItems(result.Items);
+        RefreshDisplayedProductTexts();
         var scannedItem = result.Items.FirstOrDefault(x => x.Barcode == barcode);
         if (scannedItem is not null)
         {
@@ -306,6 +310,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (existing is not null)
         {
             existing.IncrementQuantity();
+            ApplyProductTextCase(existing);
             UpdateLastScanned(existing);
         }
         else
@@ -315,6 +320,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ProductId = product.ProductId,
                 Barcode = product.Barcode,
                 Description = product.Description,
+                DisplayDescription = FormatProductText(product.Description),
                 PriceCents = product.PriceCents
             };
 
@@ -344,9 +350,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void CancelSale()
     {
-        Items.Clear();
-        SelectedItem = null;
+            Items.Clear();
+            SelectedItem = null;
         LastScannedDescription = "Aguardando leitura de produto";
+        _lastScannedDescriptionRaw = string.Empty;
         LastScannedBarcode = "-";
         LastScannedPriceCents = 0;
         LastScannedQuantity = 0;
@@ -507,6 +514,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     ProductId = x.ProductId,
                     Barcode = x.Barcode,
                     Description = x.Description,
+                    DisplayDescription = FormatProductText(x.Description),
                     PriceCents = x.PriceCents
                 }).ToArray()
             };
@@ -604,7 +612,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void UpdateLastScanned(SaleItem item)
     {
-        LastScannedDescription = item.Description;
+        _lastScannedDescriptionRaw = item.Description;
+        ApplyProductTextCase(item);
+        LastScannedDescription = string.IsNullOrWhiteSpace(item.DisplayDescription)
+            ? FormatProductText(item.Description)
+            : item.DisplayDescription;
         LastScannedBarcode = item.Barcode;
         LastScannedPriceCents = item.PriceCents;
         LastScannedQuantity = item.Quantity;
@@ -628,6 +640,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(SelectedItemUnitPriceFormatted));
         OnPropertyChanged(nameof(SelectedItemQuantityFormatted));
+    }
+
+    private string FormatProductText(string? value)
+    {
+        return ProductTextFormatter.Format(value, _settings.ProductTextCase);
+    }
+
+    private void ApplyProductTextCase(SaleItem item)
+    {
+        item.DisplayDescription = FormatProductText(item.Description);
+    }
+
+    private void RefreshDisplayedProductTexts()
+    {
+        foreach (var item in Items)
+        {
+            ApplyProductTextCase(item);
+        }
+
+        if (SelectedItem is not null)
+        {
+            ApplyProductTextCase(SelectedItem);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_lastScannedDescriptionRaw))
+        {
+            LastScannedDescription = FormatProductText(_lastScannedDescriptionRaw);
+        }
+
+        OnPropertyChanged(nameof(LastScannedPriceFormatted));
+        OnPropertyChanged(nameof(LastScannedQuantityText));
+        OnPropertyChanged(nameof(LastScannedDescription));
     }
 
     private static string GetPaymentCode(PaymentMethod paymentMethod)

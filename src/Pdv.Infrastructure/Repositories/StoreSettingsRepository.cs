@@ -19,7 +19,7 @@ public sealed class StoreSettingsRepository : IStoreSettingsRepository
         await connection.OpenAsync(cancellationToken);
 
         var cmd = connection.CreateCommand();
-        cmd.CommandText = @"SELECT store_name, cnpj, address, timezone, currency, logo_url, logo_local_path, updated_at FROM store_settings WHERE id = 1 LIMIT 1;";
+        cmd.CommandText = @"SELECT store_name, terminal_name, cnpj, address, timezone, currency, logo_url, logo_local_path, updated_at FROM store_settings WHERE id = 1 LIMIT 1;";
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
@@ -30,13 +30,14 @@ public sealed class StoreSettingsRepository : IStoreSettingsRepository
         return new StoreSettings
         {
             StoreName = reader.GetString(0),
-            Cnpj = reader.GetString(1),
-            Address = reader.GetString(2),
-            Timezone = reader.GetString(3),
-            Currency = reader.GetString(4),
-            LogoUrl = reader.GetString(5),
-            LogoLocalPath = reader.GetString(6),
-            UpdatedAt = DateTimeOffset.Parse(reader.GetString(7))
+            TerminalName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+            Cnpj = reader.GetString(2),
+            Address = reader.GetString(3),
+            Timezone = reader.GetString(4),
+            Currency = reader.GetString(5),
+            LogoUrl = reader.GetString(6),
+            LogoLocalPath = reader.GetString(7),
+            UpdatedAt = DateTimeOffset.Parse(reader.GetString(8))
         };
     }
 
@@ -47,10 +48,11 @@ public sealed class StoreSettingsRepository : IStoreSettingsRepository
 
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-INSERT INTO store_settings (id, store_name, cnpj, address, timezone, currency, logo_url, logo_local_path, updated_at)
-VALUES (1, $storeName, $cnpj, $address, $timezone, $currency, $logoUrl, $logoLocalPath, $updatedAt)
+INSERT INTO store_settings (id, store_name, terminal_name, cnpj, address, timezone, currency, logo_url, logo_local_path, updated_at)
+VALUES (1, $storeName, $terminalName, $cnpj, $address, $timezone, $currency, $logoUrl, $logoLocalPath, $updatedAt)
 ON CONFLICT(id) DO UPDATE SET
     store_name = excluded.store_name,
+    terminal_name = excluded.terminal_name,
     cnpj = excluded.cnpj,
     address = excluded.address,
     timezone = excluded.timezone,
@@ -60,6 +62,7 @@ ON CONFLICT(id) DO UPDATE SET
     updated_at = excluded.updated_at;";
 
         cmd.Parameters.AddWithValue("$storeName", settings.StoreName);
+        cmd.Parameters.AddWithValue("$terminalName", settings.TerminalName);
         cmd.Parameters.AddWithValue("$cnpj", settings.Cnpj);
         cmd.Parameters.AddWithValue("$address", settings.Address);
         cmd.Parameters.AddWithValue("$timezone", settings.Timezone);

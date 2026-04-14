@@ -1,40 +1,234 @@
 <Window x:Class="Pdv.Ui.Views.ProductsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Cadastro de Produtos"
-        Height="620"
-        Width="980"
+        xmlns:converters="clr-namespace:Pdv.Ui.Converters"
+        Title="Produto"
+        Height="820"
+        Width="1020"
         WindowStartupLocation="CenterOwner"
-        Background="#F8FAFC">
-    <Grid Margin="16">
+        ResizeMode="NoResize"
+        Background="#F8FAFC"
+        Loaded="Window_Loaded">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:InverseBooleanConverter x:Key="InverseBoolConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-            <TextBox Width="280" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
-            <Button Content="Buscar" Margin="8,0" Padding="12,6" Command="{Binding SearchCommand}"/>
-            <Button Content="Novo" Padding="12,6" Command="{Binding NewCommand}"/>
-            <Button Content="Salvar" Margin="8,0" Padding="12,6" Command="{Binding SaveCommand}"/>
-            <Button Content="Ativar/Desativar" Padding="12,6" Command="{Binding ToggleCommand}"/>
+        <StackPanel>
+            <TextBlock Text="{Binding WindowTitle}" FontSize="26" FontWeight="Bold" Foreground="#0F172A"/>
+            <TextBlock Text="{Binding StatusMessage}" Margin="0,6,0,0" Foreground="{Binding StatusBrush}" TextWrapping="Wrap"/>
         </StackPanel>
 
-        <DataGrid Grid.Row="1"
-                  ItemsSource="{Binding Products}"
-                  SelectedItem="{Binding SelectedProduct}"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="120"/>
-                <DataGridTextColumn Header="Barcode" Binding="{Binding Barcode}" Width="180"/>
-                <DataGridTextColumn Header="Descricao" Binding="{Binding Description}" Width="*"/>
-                <DataGridTextColumn Header="Preco (R$)" Binding="{Binding PriceInput}" Width="130"/>
-                <DataGridCheckBoxColumn Header="Ativo" Binding="{Binding Active}" Width="70"/>
-            </DataGrid.Columns>
-        </DataGrid>
+        <Border Grid.Row="1" Margin="0,14,0,0" Background="White" CornerRadius="18" BorderBrush="#DBEAFE" BorderThickness="1" Padding="18">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Margin="0,12,0,0" FontWeight="SemiBold" Foreground="#334155"/>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,14">
+                        <TextBlock Text="Dados principais" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A"/>
+                        <TextBlock Text="Cadastre ou edite o produto com os mesmos campos operacionais do sistema." Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,14">
+                        <TextBlock Text="Nome *" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="12,0,0,14">
+                        <TextBlock Text="SKU" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" IsReadOnly="True" Background="#F8FAFC" Text="{Binding Sku}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,12,14">
+                        <TextBlock Text="Código de Barras" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding Barcode, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="12,0,0,14">
+                        <TextBlock Text="Unidade" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <ComboBox Height="40"
+                                  ItemsSource="{Binding Units}"
+                                  SelectedItem="{Binding Unit}"
+                                  Padding="8,0"/>
+                    </StackPanel>
+
+                    <Grid Grid.Row="3" Grid.ColumnSpan="2" Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Categoria" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <ComboBox Height="40"
+                                      ItemsSource="{Binding Categories}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding CategoryId, UpdateSourceTrigger=PropertyChanged}"
+                                      Padding="8,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="+"
+                                Width="40"
+                                Height="40"
+                                Margin="0,30,12,0"
+                                Background="#0F766E"
+                                BorderBrush="#0F766E"
+                                Foreground="White"
+                                FontSize="18"
+                                Click="CreateCategory_Click"/>
+
+                        <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                            <TextBlock Text="Fornecedor" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <ComboBox Height="40"
+                                      ItemsSource="{Binding Suppliers}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding SupplierId, UpdateSourceTrigger=PropertyChanged}"
+                                      Padding="8,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="3"
+                                Content="+"
+                                Width="40"
+                                Height="40"
+                                Margin="0,30,0,0"
+                                Background="#2563EB"
+                                BorderBrush="#2563EB"
+                                Foreground="White"
+                                FontSize="18"
+                                Click="CreateSupplier_Click"/>
+                    </Grid>
+
+                    <Grid Grid.Row="4" Grid.ColumnSpan="2" Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="NCM" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding Ncm, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="6,0,6,0">
+                            <TextBlock Text="CFOP" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding Cfop, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Margin="12,0,0,0">
+                            <TextBlock Text="Status" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <CheckBox Height="40"
+                                      VerticalContentAlignment="Center"
+                                      Content="Produto ativo"
+                                      IsChecked="{Binding IsActive}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="5" Grid.ColumnSpan="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Preço de Custo" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding CostPriceInput, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="6,0,6,0">
+                            <TextBlock Text="Preço de Venda *" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding SalePriceInput, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Margin="12,0,0,0">
+                            <TextBlock Text="Margem (%)" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <Border Height="40"
+                                    Background="#F8FAFC"
+                                    BorderBrush="#CBD5E1"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="12,0">
+                                <TextBlock Text="{Binding MarginPercent}"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Foreground="#0F172A"/>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="6" Grid.ColumnSpan="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Margin="0,14,12,0">
+                            <TextBlock Text="Estoque Atual" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding StockQuantity, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="12,14,0,0">
+                            <TextBlock Text="Estoque Mínimo" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding MinStock, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </ScrollViewer>
+        </Border>
+
+        <StackPanel Grid.Row="2" Margin="0,14,0,0">
+            <ProgressBar Height="6" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                <Button Content="Excluir"
+                        Margin="0,0,8,0"
+                        Padding="16,10"
+                        Background="#DC2626"
+                        BorderBrush="#DC2626"
+                        Foreground="White"
+                        Visibility="{Binding ShowDeleteButton, Converter={StaticResource BoolToVisibility}}"
+                        Click="Delete_Click"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                <Button Content="Cancelar"
+                        Margin="0,0,8,0"
+                        Padding="16,10"
+                        Background="#64748B"
+                        BorderBrush="#64748B"
+                        Foreground="White"
+                        Click="Cancel_Click"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                <Button Content="{Binding SaveButtonText}"
+                        Padding="16,10"
+                        Background="#2563EB"
+                        BorderBrush="#2563EB"
+                        Foreground="White"
+                        Click="Save_Click"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+            </StackPanel>
+        </StackPanel>
     </Grid>
 </Window>

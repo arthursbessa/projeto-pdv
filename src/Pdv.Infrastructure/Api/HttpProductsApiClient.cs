@@ -70,6 +70,10 @@ public sealed class HttpProductsApiClient : IProductsApiClient
             name = product.Name,
             sku = product.Sku,
             barcode = string.IsNullOrWhiteSpace(product.Barcode) ? null : product.Barcode,
+            category_id = string.IsNullOrWhiteSpace(product.CategoryId) ? null : product.CategoryId,
+            supplier_id = string.IsNullOrWhiteSpace(product.SupplierId) ? null : product.SupplierId,
+            ncm = string.IsNullOrWhiteSpace(product.Ncm) ? null : product.Ncm,
+            cfop = string.IsNullOrWhiteSpace(product.Cfop) ? null : product.Cfop,
             sale_price = product.PriceCents / 100m,
             cost_price = product.CostPriceCents / 100m,
             stock_quantity = product.StockQuantity,
@@ -106,6 +110,10 @@ public sealed class HttpProductsApiClient : IProductsApiClient
             Name = productElement.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? product.Name : product.Name,
             Sku = productElement.TryGetProperty("sku", out var skuEl) ? skuEl.GetString() ?? product.Sku : product.Sku,
             Barcode = productElement.TryGetProperty("barcode", out var barcodeEl) ? barcodeEl.GetString() ?? string.Empty : string.Empty,
+            CategoryId = productElement.TryGetProperty("category_id", out var categoryIdEl) ? categoryIdEl.GetString() : product.CategoryId,
+            SupplierId = productElement.TryGetProperty("supplier_id", out var supplierIdEl) ? supplierIdEl.GetString() : product.SupplierId,
+            Ncm = productElement.TryGetProperty("ncm", out var ncmEl) ? ncmEl.GetString() : product.Ncm,
+            Cfop = productElement.TryGetProperty("cfop", out var cfopEl) ? cfopEl.GetString() : product.Cfop,
             PriceCents = productElement.TryGetProperty("sale_price", out var salePriceEl) && salePriceEl.TryGetDecimal(out var salePrice)
                 ? (int)Math.Round(salePrice * 100m)
                 : product.PriceCents,
@@ -121,5 +129,32 @@ public sealed class HttpProductsApiClient : IProductsApiClient
             Unit = productElement.TryGetProperty("unit", out var unitEl) ? unitEl.GetString() ?? product.Unit : product.Unit,
             Active = !productElement.TryGetProperty("is_active", out var activeEl) || activeEl.GetBoolean()
         };
+    }
+
+    public async Task DeleteAsync(string productId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_options.FunctionsBaseUrl) || string.IsNullOrWhiteSpace(_options.TerminalToken))
+        {
+            throw new InvalidOperationException("Configuracao de produtos do PDV incompleta.");
+        }
+
+        var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-products";
+        var payload = JsonSerializer.Serialize(new { id = productId });
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, endpoint)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        PdvApiRequestHeaders.Apply(request, _options);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var exception = new HttpRequestException(
+                $"Falha ao excluir produto no PDV em '{endpoint}'. Status: {(int)response.StatusCode} ({response.ReasonPhrase}). Corpo: {responseBody}");
+            _errorLogger.LogError("Falha ao excluir produto no PDV", exception);
+            throw exception;
+        }
     }
 }

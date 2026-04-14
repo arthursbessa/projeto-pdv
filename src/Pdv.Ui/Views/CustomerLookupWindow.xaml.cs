@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Pdv.Application.Domain;
 using Pdv.Ui.ViewModels;
 
 namespace Pdv.Ui.Views;
@@ -54,15 +55,52 @@ public partial class CustomerLookupWindow : Window
             return;
         }
 
+        var editorVm = App.Services.GetRequiredService<CreateCustomerViewModel>();
+        editorVm.New();
         var createWindow = new CreateCustomerWindow
         {
             Owner = this,
-            DataContext = App.Services.GetRequiredService<CreateCustomerViewModel>()
+            DataContext = editorVm
         };
 
         if (createWindow.ShowDialog() == true && createWindow.ViewModel?.CreatedCustomer is not null)
         {
             await vm.AddCreatedCustomerAsync(createWindow.ViewModel.CreatedCustomer);
+        }
+    }
+
+    private async void EditCustomer_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not CustomerLookupItemViewModel item)
+        {
+            return;
+        }
+
+        if (DataContext is not CustomerLookupViewModel vm)
+        {
+            return;
+        }
+
+        var customer = new CustomerRecord
+        {
+            Id = item.Id,
+            Name = item.Name,
+            Cpf = item.Cpf,
+            Phone = item.Phone,
+            Email = item.Email
+        };
+
+        var editorVm = App.Services.GetRequiredService<CreateCustomerViewModel>();
+        editorVm.LoadExisting(customer);
+        var createWindow = new CreateCustomerWindow
+        {
+            Owner = this,
+            DataContext = editorVm
+        };
+
+        if (createWindow.ShowDialog() == true && createWindow.ViewModel?.CreatedCustomer is not null)
+        {
+            await vm.LoadAsync();
         }
     }
 

@@ -192,6 +192,9 @@ public sealed class SyncServiceTests
 
         public Task UpdatePriceAsync(string productId, int priceCents, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+
+        public Task DeleteAsync(string productId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private sealed class FakeSalesRepository : ISalesRepository

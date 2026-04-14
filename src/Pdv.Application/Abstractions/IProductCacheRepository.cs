@@ -9,6 +9,7 @@ public interface IProductCacheRepository
     Task<ProductCacheItem?> FindByIdAsync(string id, CancellationToken cancellationToken = default);
     Task AddAsync(ProductCacheItem product, CancellationToken cancellationToken = default);
     Task UpdateAsync(ProductCacheItem product, CancellationToken cancellationToken = default);
+    Task DeleteAsync(string id, CancellationToken cancellationToken = default);
     Task ToggleActiveAsync(string id, bool active, CancellationToken cancellationToken = default);
     Task<int> CountAsync(CancellationToken cancellationToken = default);
     Task SeedIfEmptyAsync(IEnumerable<ProductCacheItem> products, CancellationToken cancellationToken = default);

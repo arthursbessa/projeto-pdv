@@ -28,7 +28,6 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBox x:Name="QueryTextBox"
                      Height="40"
@@ -37,22 +36,14 @@
                      Padding="12,0"
                      Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"/>
             <Button Grid.Column="1"
-                    Content="Cadastrar produto"
+                    Content="Novo produto"
                     Margin="12,0,0,0"
                     Padding="16,10"
-                    Background="#1D4ED8"
-                    BorderBrush="#1D4ED8"
+                    Background="#64748B"
+                    BorderBrush="#64748B"
                     Click="CreateProduct_Click"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
             <Button Grid.Column="2"
-                    Content="Editar produto"
-                    Margin="12,0,0,0"
-                    Padding="16,10"
-                    Background="#0F766E"
-                    BorderBrush="#0F766E"
-                    Click="EditProduct_Click"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-            <Button Grid.Column="3"
                     Content="Adicionar selecionado"
                     Margin="12,0,0,0"
                     Padding="16,10"
@@ -72,6 +63,20 @@
                     <DataGridTextColumn Header="Codigo" Binding="{Binding Barcode}" Width="170"/>
                     <DataGridTextColumn Header="Descricao" Binding="{Binding Description}" Width="*"/>
                     <DataGridTextColumn Header="Preco" Binding="{Binding PriceFormatted}" Width="130"/>
+                    <DataGridTemplateColumn Header="Ações" Width="84">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="✎"
+                                        Width="28"
+                                        Height="28"
+                                        Padding="0"
+                                        Background="#0F766E"
+                                        Foreground="White"
+                                        BorderBrush="#0F766E"
+                                        Click="EditProduct_Click"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
