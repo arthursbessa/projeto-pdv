@@ -119,7 +119,9 @@ VALUES ($id, $saleId, $paymentMethodId, $amountCents, $paidAt);";
 
     public async Task<IReadOnlyList<SaleHistoryEntry>> GetHistoryAsync(DateTime date, CancellationToken cancellationToken = default)
     {
-        var start = date.Date;
+        var localStart = date.Date;
+        var localOffset = TimeZoneInfo.Local.GetUtcOffset(localStart);
+        var start = new DateTimeOffset(localStart, localOffset).ToUniversalTime();
         var end = start.AddDays(1);
 
         await using var connection = _connectionFactory.Create();
