@@ -146,9 +146,6 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
     public string SelectedSaleChange => _selectedSaleDetails is null ? "-" : MoneyFormatter.FormatFromCents(_selectedSaleDetails.ChangeAmountCents);
     public string SelectedSaleDiscount => _selectedSaleDetails is null ? "-" : MoneyFormatter.FormatFromCents(_selectedSaleDetails.DiscountCents);
     public string SelectedSaleReceiptTaxId => string.IsNullOrWhiteSpace(_selectedSaleDetails?.ReceiptTaxId) ? "-" : _selectedSaleDetails!.ReceiptTaxId!;
-    public string SelectedSalePrintedStatus => _selectedSaleDetails?.PrintedAt is null
-        ? "Nao impresso"
-        : $"Impresso em {_selectedSaleDetails.PrintedAt.Value.ToLocalTime():dd/MM/yyyy HH:mm:ss}";
 
     public async Task LoadAsync()
     {
@@ -328,29 +325,6 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
         return (storeSettings, settings);
     }
 
-    public async Task MarkSelectedSalePrintedAsync(string? receiptTaxId)
-    {
-        if (_selectedSaleDetails is null)
-        {
-            return;
-        }
-
-        var printedAt = DateTimeOffset.UtcNow;
-        var effectiveTaxId = string.IsNullOrWhiteSpace(receiptTaxId) ? _selectedSaleDetails.ReceiptTaxId : receiptTaxId;
-        var payload = JsonSerializer.Serialize(new
-        {
-            local_sale_id = _selectedSaleDetails.SaleId,
-            sale_id = _selectedSaleDetails.RemoteSaleId,
-            printed_at = printedAt.ToString("O"),
-            receipt_tax_id = effectiveTaxId
-        });
-
-        await _salesRepository.MarkAsPrintedAsync(_selectedSaleDetails.SaleId, printedAt, effectiveTaxId, payload);
-        _selectedSaleDetails = await _salesRepository.FindByIdAsync(_selectedSaleDetails.SaleId);
-        NotifySelectedSaleChanged();
-        TriggerBackgroundSync();
-    }
-
     private async Task LoadSelectedSaleAsync()
     {
         if (SelectedSale is null)
@@ -410,7 +384,6 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SelectedSaleChange));
         OnPropertyChanged(nameof(SelectedSaleDiscount));
         OnPropertyChanged(nameof(SelectedSaleReceiptTaxId));
-        OnPropertyChanged(nameof(SelectedSalePrintedStatus));
     }
 
     private void RefreshFilterCollections()

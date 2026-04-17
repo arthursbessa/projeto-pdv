@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:Pdv.Ui.Converters"
         Title="Finalizar venda"
-        Height="620"
+        Height="840"
         Width="560"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
@@ -36,11 +36,20 @@
             <Setter Property="Background" Value="#64748B"/>
         </Style>
 
-        <Style x:Key="SmallSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+        <Style x:Key="TopActionButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
             <Setter Property="Background" Value="#94A3B8"/>
-            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Padding" Value="16,10"/>
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinWidth" Value="122"/>
+        </Style>
+
+        <Style x:Key="SummaryMetricBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#F8FBFF"/>
+            <Setter Property="BorderBrush" Value="#D7E2F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
 
         <Style x:Key="PaymentRowStyle" TargetType="RadioButton">
@@ -101,129 +110,194 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel>
-            <TextBlock Text="Finalizacao de venda" FontSize="22" FontWeight="Bold" Foreground="#153A73"/>
-            <TextBlock Margin="0,4,0,0" Text="{Binding SubtotalFormatted}" Foreground="#64748B" FontSize="13"/>
+        <TextBlock Text="Finalizacao de venda"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Foreground="#153A73"/>
+
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Content="{Binding DiscountButtonText}"
+                    Margin="0,0,10,0"
+                    Style="{StaticResource TopActionButtonStyle}"
+                    Click="Discount_Click"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+            <Button Content="{Binding CustomerButtonText}"
+                    Style="{StaticResource TopActionButtonStyle}"
+                    Click="SelectCustomer_Click"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
         </StackPanel>
 
-        <Border Grid.Row="1"
-                Margin="0,14,0,0"
+        <Border Grid.Row="2"
+                Margin="0,12,0,0"
                 Background="White"
-                CornerRadius="12"
+                CornerRadius="14"
                 BorderBrush="#D7E2F0"
                 BorderThickness="1.2"
                 Padding="14">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Total a pagar" FontSize="12" Foreground="#64748B" FontWeight="SemiBold"/>
-                    <TextBlock Text="{Binding TotalWithDiscountFormatted}" FontSize="26" Foreground="#153A73" FontWeight="Bold" Margin="0,2,0,0"/>
-                    <TextBlock Text="{Binding SelectedCustomerDisplay}" FontSize="12" Foreground="#475569" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
-                </StackPanel>
-
-                <Button Grid.Column="1"
-                        Content="{Binding DiscountButtonText}"
-                        Margin="12,0,0,0"
-                        Style="{StaticResource SmallSecondaryButtonStyle}"
-                        Click="Discount_Click"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-
-                <Button Grid.Column="2"
-                        Content="{Binding CustomerButtonText}"
-                        Margin="8,0,0,0"
-                        Style="{StaticResource SmallSecondaryButtonStyle}"
-                        Click="SelectCustomer_Click"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-            </Grid>
-        </Border>
-
-        <ScrollViewer Grid.Row="2" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <TextBlock Text="Selecione a forma de pagamento" FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/>
-
-                <RadioButton x:Name="CashOption"
-                             ToolTip="Dinheiro"
-                             Tag="#16A34A"
-                             GroupName="PaymentMethod"
-                             Checked="PaymentOption_Checked"
-                             Style="{StaticResource PaymentRowStyle}"
-                             IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
-                    <TextBlock Text="💵" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </RadioButton>
-
-                <Border Margin="0,-2,0,8"
-                        Padding="12,10"
-                        Background="#F0FDF4"
-                        BorderBrush="#BBF7D0"
-                        BorderThickness="1,0,1,1"
-                        CornerRadius="0,0,10,10"
-                        Visibility="{Binding IsCashSelected, Converter={StaticResource BoolToVisibility}}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Valor recebido" FontSize="11" Foreground="#166534" FontWeight="SemiBold"/>
-                            <TextBox x:Name="ReceivedAmountTextBox"
-                                     Margin="0,4,0,0"
-                                     Height="34"
-                                     VerticalContentAlignment="Center"
-                                     FontSize="15"
-                                     Padding="8,0"
-                                     Text="{Binding ReceivedAmountInput, UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-                            <TextBlock Text="{Binding CashValidationMessage}" Foreground="#DC2626" FontSize="10" Margin="0,3,0,0" TextWrapping="Wrap"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right">
-                            <TextBlock Text="Troco" FontSize="11" Foreground="#166534" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                            <TextBlock Text="{Binding ChangeFormatted}" FontWeight="Bold" FontSize="22" Foreground="#15803D" HorizontalAlignment="Right"/>
-                        </StackPanel>
-                    </Grid>
+                <Border Style="{StaticResource SummaryMetricBorderStyle}"
+                        Visibility="{Binding HasDiscountApplied, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="Valor da venda"
+                                   FontSize="11"
+                                   Foreground="#64748B"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding SaleValueFormatted}"
+                                   FontSize="22"
+                                   Foreground="#153A73"
+                                   FontWeight="Bold"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
                 </Border>
 
-                <RadioButton x:Name="PixOption"
-                             ToolTip="PIX"
-                             Tag="#0EA5E9"
-                             GroupName="PaymentMethod"
-                             Checked="PaymentOption_Checked"
-                             Style="{StaticResource PaymentRowStyle}"
-                             IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
-                    <TextBlock Text="◉" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
-                </RadioButton>
+                <Border Style="{StaticResource SummaryMetricBorderStyle}"
+                        Visibility="{Binding HasDiscountApplied, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="Desconto aplicado"
+                                   FontSize="11"
+                                   Foreground="#B45309"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding DiscountAppliedFormatted}"
+                                   FontSize="18"
+                                   Foreground="#B45309"
+                                   FontWeight="Bold"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
 
-                <RadioButton x:Name="CreditCardOption"
-                             ToolTip="Cartao de credito"
-                             Tag="#7C3AED"
-                             GroupName="PaymentMethod"
-                             Checked="PaymentOption_Checked"
-                             Style="{StaticResource PaymentRowStyle}"
-                             IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
-                    <TextBlock Text="💳" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </RadioButton>
+                <Border Background="#EEF4FF"
+                        BorderBrush="#BFD3FF"
+                        BorderThickness="1"
+                        CornerRadius="14"
+                        Padding="16,12"
+                        Margin="0,2,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Valor final"
+                                   FontSize="11"
+                                   Foreground="#1F5FBF"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding TotalWithDiscountFormatted}"
+                                   FontSize="30"
+                                   Foreground="#153A73"
+                                   FontWeight="Bold"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
 
-                <RadioButton x:Name="DebitCardOption"
-                             ToolTip="Cartao de debito"
-                             Tag="#EA580C"
-                             GroupName="PaymentMethod"
-                             Checked="PaymentOption_Checked"
-                             Style="{StaticResource PaymentRowStyle}"
-                             IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
-                    <TextBlock Text="💳" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </RadioButton>
+                <TextBlock Text="{Binding SelectedCustomerDisplay}"
+                           FontSize="12"
+                           Foreground="#475569"
+                           Margin="2,10,0,0"
+                           TextTrimming="CharacterEllipsis"/>
             </StackPanel>
-        </ScrollViewer>
+        </Border>
 
-        <Grid Grid.Row="3" Margin="0,16,0,0">
+        <StackPanel Grid.Row="3" Margin="0,16,0,0">
+            <TextBlock Text="Selecione a forma de pagamento"
+                       FontSize="15"
+                       FontWeight="Bold"
+                       Foreground="#0F172A"
+                       Margin="0,0,0,12"/>
+
+            <RadioButton x:Name="CashOption"
+                         ToolTip="Dinheiro"
+                         Tag="#16A34A"
+                         GroupName="PaymentMethod"
+                         Checked="PaymentOption_Checked"
+                         Style="{StaticResource PaymentRowStyle}"
+                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                <TextBlock Text="💵" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </RadioButton>
+
+            <Border Margin="0,-2,0,8"
+                    Padding="12,10"
+                    Background="#F0FDF4"
+                    BorderBrush="#BBF7D0"
+                    BorderThickness="1,0,1,1"
+                    CornerRadius="0,0,10,10"
+                    Visibility="{Binding IsCashSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Valor recebido"
+                                   FontSize="11"
+                                   Foreground="#166534"
+                                   FontWeight="SemiBold"/>
+                        <TextBox x:Name="ReceivedAmountTextBox"
+                                 Margin="0,4,0,0"
+                                 Height="34"
+                                 VerticalContentAlignment="Center"
+                                 FontSize="15"
+                                 Padding="8,0"
+                                 Text="{Binding ReceivedAmountInput, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                        <TextBlock Text="{Binding CashValidationMessage}"
+                                   Foreground="#DC2626"
+                                   FontSize="10"
+                                   Margin="0,3,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                        <TextBlock Text="Troco"
+                                   FontSize="11"
+                                   Foreground="#166534"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Right"/>
+                        <TextBlock Text="{Binding ChangeFormatted}"
+                                   FontWeight="Bold"
+                                   FontSize="22"
+                                   Foreground="#15803D"
+                                   HorizontalAlignment="Right"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <RadioButton x:Name="PixOption"
+                         ToolTip="PIX"
+                         Tag="#0EA5E9"
+                         GroupName="PaymentMethod"
+                         Checked="PaymentOption_Checked"
+                         Style="{StaticResource PaymentRowStyle}"
+                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                <TextBlock Text="◉" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
+            </RadioButton>
+
+            <RadioButton x:Name="CreditCardOption"
+                         ToolTip="Cartao de credito"
+                         Tag="#7C3AED"
+                         GroupName="PaymentMethod"
+                         Checked="PaymentOption_Checked"
+                         Style="{StaticResource PaymentRowStyle}"
+                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                <TextBlock Text="💳" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </RadioButton>
+
+            <RadioButton x:Name="DebitCardOption"
+                         ToolTip="Cartao de debito"
+                         Tag="#EA580C"
+                         GroupName="PaymentMethod"
+                         Checked="PaymentOption_Checked"
+                         Style="{StaticResource PaymentRowStyle}"
+                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                <TextBlock Text="💳" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </RadioButton>
+        </StackPanel>
+
+        <Grid Grid.Row="4" Margin="0,16,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -231,10 +305,30 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <ProgressBar Grid.Column="0" Height="5" VerticalAlignment="Center" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
-            <Button Grid.Column="1" Content="Cancelar" Margin="8,0,0,0" Style="{StaticResource SecondaryButtonStyle}" Click="Cancel_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-            <Button Grid.Column="2" Content="Voltar" Margin="8,0,0,0" Style="{StaticResource SecondaryButtonStyle}" Click="Back_Click" Visibility="{Binding ShowBackButton, Converter={StaticResource BoolToVisibility}}" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-            <Button Grid.Column="3" Content="Finalizar venda" Margin="8,0,0,0" Style="{StaticResource PrimaryButtonStyle}" Click="PrimaryAction_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+            <ProgressBar Grid.Column="0"
+                         Height="5"
+                         VerticalAlignment="Center"
+                         IsIndeterminate="True"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
+            <Button Grid.Column="1"
+                    Content="Cancelar"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Click="Cancel_Click"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+            <Button Grid.Column="2"
+                    Content="Voltar"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Click="Back_Click"
+                    Visibility="{Binding ShowBackButton, Converter={StaticResource BoolToVisibility}}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+            <Button Grid.Column="3"
+                    Content="Finalizar venda"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Click="PrimaryAction_Click"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
         </Grid>
     </Grid>
 </Window>

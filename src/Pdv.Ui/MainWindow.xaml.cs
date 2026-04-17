@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,6 +37,25 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm && vm.MatchesShortcut(e.Key, vm.AddItemShortcutLabel))
         {
             await AddItemFromBarcodeAsync();
+            e.Handled = true;
+        }
+    }
+
+    private async void CancelSale_Click(object sender, RoutedEventArgs e)
+    {
+        await CancelSaleWithConfirmationAsync();
+    }
+
+    private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.CancelSaleShortcutLabel) && e.Key == Key.Space)
+        {
+            await CancelSaleWithConfirmationAsync();
             e.Handled = true;
         }
     }
@@ -82,11 +102,7 @@ public partial class MainWindow : Window
         if (result == true && modal.CompletedSale is not null && modal.CompletedSale.ReceiptRequested)
         {
             var printContext = await vm.GetPrintContextAsync();
-            var printed = FiscalCouponPrinter.Print(this, modal.CompletedSale, modal.PrintedTaxId, printContext.StoreSettings, printContext.Settings);
-            if (printed)
-            {
-                await vm.MarkSalePrintedAsync(modal.CompletedSale, modal.PrintedTaxId);
-            }
+            ReceiptPrinter.Print(this, modal.CompletedSale, modal.PrintedTaxId, printContext.StoreSettings, printContext.Settings);
         }
 
         FocusBarcode();
@@ -160,11 +176,28 @@ public partial class MainWindow : Window
         }
         else if (vm.MatchesShortcut(e.Key, vm.CancelSaleShortcutLabel))
         {
-            vm.CancelSale();
-            ItemsDataGrid.Items.Refresh();
-            SyncSelectionEditors();
-            FocusBarcode();
+            await CancelSaleWithConfirmationAsync();
             e.Handled = true;
+        }
+    }
+
+    private void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || !vm.Items.Any())
+        {
+            return;
+        }
+
+        var choice = MessageBox.Show(
+            this,
+            "Existe uma venda em aberto. Deseja fechar esta tela mesmo assim?",
+            "Fechar tela do PDV",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (choice != MessageBoxResult.Yes)
+        {
+            e.Cancel = true;
         }
     }
 
@@ -269,5 +302,40 @@ public partial class MainWindow : Window
     {
         BarcodeTextBox.Focus();
         BarcodeTextBox.SelectAll();
+    }
+
+    private Task CancelSaleWithConfirmationAsync()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (!vm.Items.Any())
+        {
+            vm.CancelSale();
+            ItemsDataGrid.Items.Refresh();
+            SyncSelectionEditors();
+            FocusBarcode();
+            return Task.CompletedTask;
+        }
+
+        var choice = MessageBox.Show(
+            this,
+            "Existe uma venda em aberto. Deseja cancelar o comprovante atual?",
+            "Cancelar comprovante",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (choice != MessageBoxResult.Yes)
+        {
+            return Task.CompletedTask;
+        }
+
+        vm.CancelSale();
+        ItemsDataGrid.Items.Refresh();
+        SyncSelectionEditors();
+        FocusBarcode();
+        return Task.CompletedTask;
     }
 }

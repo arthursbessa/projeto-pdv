@@ -4,6 +4,7 @@ using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
 using Pdv.Infrastructure.Repositories;
+using Pdv.Application.Utilities;
 
 namespace Pdv.Infrastructure.Api;
 
@@ -90,9 +91,9 @@ public sealed class HttpUsersApiClient : IUsersApiClient
             result.Add(new UserAccount
             {
                 Id = element.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString(),
-                Username = username.Trim(),
-                FullName = fullName.Trim(),
-                PasswordHash = hash.Trim(),
+                Username = TextNormalization.TrimToEmpty(username),
+                FullName = TextNormalization.TrimToEmpty(fullName),
+                PasswordHash = TextNormalization.TrimToEmpty(hash),
                 Active = !element.TryGetProperty("active", out var activeEl) || activeEl.ValueKind != JsonValueKind.False,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow

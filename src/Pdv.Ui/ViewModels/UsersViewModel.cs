@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
 using Pdv.Infrastructure.Repositories;
+using Pdv.Application.Utilities;
 
 namespace Pdv.Ui.ViewModels;
 
@@ -35,7 +36,7 @@ public sealed class UsersViewModel : INotifyPropertyChanged
 
     public async Task SearchAsync()
     {
-        var users = await _repository.SearchAsync(Query);
+        var users = await _repository.SearchAsync(TextNormalization.TrimToEmpty(Query));
         Users.Clear();
         foreach (var user in users)
         {
@@ -69,8 +70,8 @@ public sealed class UsersViewModel : INotifyPropertyChanged
         var user = new UserAccount
         {
             Id = SelectedUser.Id,
-            Username = SelectedUser.Username.Trim(),
-            FullName = SelectedUser.FullName.Trim(),
+            Username = TextNormalization.TrimToEmpty(SelectedUser.Username),
+            FullName = TextNormalization.TrimToEmpty(SelectedUser.FullName),
             PasswordHash = passwordHash,
             Active = SelectedUser.Active,
             CreatedAt = existing?.CreatedAt ?? DateTimeOffset.UtcNow,

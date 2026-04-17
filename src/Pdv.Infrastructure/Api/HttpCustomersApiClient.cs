@@ -5,6 +5,7 @@ using System.Text.Json;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 
 namespace Pdv.Infrastructure.Api;
 
@@ -31,7 +32,7 @@ public sealed class HttpCustomersApiClient : ICustomersApiClient
         var query = new List<string>();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query.Add($"search={Uri.EscapeDataString(search.Trim())}");
+            query.Add($"search={Uri.EscapeDataString(TextNormalization.TrimToEmpty(search))}");
         }
 
         query.Add($"limit={limit}");
@@ -120,12 +121,12 @@ public sealed class HttpCustomersApiClient : ICustomersApiClient
         var payload = JsonSerializer.Serialize(new
         {
             id = customer.Id,
-            name = customer.Name,
-            cpf = customer.Cpf,
-            phone = customer.Phone,
-            email = customer.Email,
-            address = customer.Address,
-            notes = customer.Notes
+            name = TextNormalization.TrimToEmpty(customer.Name),
+            cpf = TextNormalization.FormatTaxId(customer.Cpf),
+            phone = TextNormalization.TrimToNull(customer.Phone),
+            email = TextNormalization.TrimToNull(customer.Email),
+            address = TextNormalization.TrimToNull(customer.Address),
+            notes = TextNormalization.TrimToNull(customer.Notes)
         });
 
         using var request = new HttpRequestMessage(method, endpoint)
@@ -158,12 +159,12 @@ public sealed class HttpCustomersApiClient : ICustomersApiClient
         return new CustomerRecord
         {
             Id = element.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString(),
-            Name = element.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? string.Empty : string.Empty,
-            Cpf = element.TryGetProperty("cpf", out var cpfEl) ? cpfEl.GetString() ?? string.Empty : string.Empty,
-            Phone = element.TryGetProperty("phone", out var phoneEl) ? phoneEl.GetString() ?? string.Empty : string.Empty,
-            Email = element.TryGetProperty("email", out var emailEl) ? emailEl.GetString() ?? string.Empty : string.Empty,
-            Address = element.TryGetProperty("address", out var addressEl) ? addressEl.GetString() ?? string.Empty : string.Empty,
-            Notes = element.TryGetProperty("notes", out var notesEl) ? notesEl.GetString() ?? string.Empty : string.Empty,
+            Name = element.TryGetProperty("name", out var nameEl) ? TextNormalization.TrimToEmpty(nameEl.GetString()) : string.Empty,
+            Cpf = element.TryGetProperty("cpf", out var cpfEl) ? TextNormalization.FormatTaxIdPartial(cpfEl.GetString()) : string.Empty,
+            Phone = element.TryGetProperty("phone", out var phoneEl) ? TextNormalization.TrimToEmpty(phoneEl.GetString()) : string.Empty,
+            Email = element.TryGetProperty("email", out var emailEl) ? TextNormalization.TrimToEmpty(emailEl.GetString()) : string.Empty,
+            Address = element.TryGetProperty("address", out var addressEl) ? TextNormalization.TrimToEmpty(addressEl.GetString()) : string.Empty,
+            Notes = element.TryGetProperty("notes", out var notesEl) ? TextNormalization.TrimToEmpty(notesEl.GetString()) : string.Empty,
             Active = true,
             CreatedAt = element.TryGetProperty("created_at", out var createdAtEl) && createdAtEl.ValueKind == JsonValueKind.String
                 ? DateTimeOffset.Parse(createdAtEl.GetString()!)

@@ -74,12 +74,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         DatabaseFullPath = options.DatabaseFullPath;
 
         RemoveSelectedCommand = new RelayCommand(RemoveSelectedItem, () => SelectedItem is not null);
-        CancelSaleCommand = new RelayCommand(CancelSale, () => Items.Any());
     }
 
     public ObservableCollection<SaleItem> Items { get; } = [];
     public RelayCommand RemoveSelectedCommand { get; }
-    public RelayCommand CancelSaleCommand { get; }
 
     public string BarcodeInput
     {
@@ -172,7 +170,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SearchProductShortcutLabel => _settings.ShortcutSearchProduct;
     public string RemoveItemShortcutLabel => _settings.ShortcutRemoveItem;
     public string CancelSaleShortcutLabel => _settings.ShortcutCancelSale;
-    public decimal DefaultDiscountPercent => _settings.DefaultDiscountPercent;
 
     public async Task LoadAsync()
     {
@@ -182,7 +179,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SearchProductShortcutLabel));
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
-        OnPropertyChanged(nameof(DefaultDiscountPercent));
         RefreshDisplayedProductTexts();
         await LoadStoreSettingsAsync();
     }
@@ -201,7 +197,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SearchProductShortcutLabel));
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
-        OnPropertyChanged(nameof(DefaultDiscountPercent));
         RefreshDisplayedProductTexts();
     }
 
@@ -350,8 +345,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void CancelSale()
     {
-            Items.Clear();
-            SelectedItem = null;
+        Items.Clear();
+        SelectedItem = null;
         LastScannedDescription = "Aguardando leitura de produto";
         _lastScannedDescriptionRaw = string.Empty;
         LastScannedBarcode = "-";
@@ -474,9 +469,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (request.PaymentMethod == PaymentMethod.Cash)
         {
-            if (!request.ReceivedAmountCents.HasValue || request.ReceivedAmountCents.Value < TotalCents)
+            if (!request.ReceivedAmountCents.HasValue || request.ReceivedAmountCents.Value < 0)
             {
-                StatusMessage = "Valor recebido em dinheiro deve ser maior ou igual ao total da venda.";
+                StatusMessage = "Informe um valor valido em dinheiro.";
                 return null;
             }
         }
@@ -488,9 +483,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var subtotalCents = Items.Sum(x => x.SubtotalCents);
             var discountPercent = Math.Clamp(request.DiscountPercent, 0m, 100m);
             var discountCents = (int)Math.Round(subtotalCents * (discountPercent / 100m), MidpointRounding.AwayFromZero);
-            var finalTotalCents = Math.Max(subtotalCents - discountCents, 0);
-            var changeAmountCents = request.PaymentMethod == PaymentMethod.Cash && request.ReceivedAmountCents.HasValue
-                ? request.ReceivedAmountCents.Value - finalTotalCents
+            var effectiveSubtotalCents = Math.Max(subtotalCents - discountCents, 0);
+            var receivedAmountCents = request.PaymentMethod == PaymentMethod.Cash
+                ? request.ReceivedAmountCents ?? 0
+                : 0;
+            var cashShortageAsDiscountCents = 0;
+            var finalTotalCents = effectiveSubtotalCents;
+
+            if (request.PaymentMethod == PaymentMethod.Cash && request.ReceivedAmountCents.HasValue && request.ReceivedAmountCents.Value < effectiveSubtotalCents)
+            {
+                cashShortageAsDiscountCents = effectiveSubtotalCents - request.ReceivedAmountCents.Value;
+                finalTotalCents = request.ReceivedAmountCents.Value;
+            }
+
+            var totalDiscountCents = discountCents + cashShortageAsDiscountCents;
+            var changeAmountCents = request.PaymentMethod == PaymentMethod.Cash
+                ? Math.Max(receivedAmountCents - finalTotalCents, 0)
                 : 0;
 
             var sale = new Sale
@@ -506,7 +514,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ChangeAmountCents = changeAmountCents,
                 CashRegisterSessionId = _session.OpenCashRegister.Id,
                 DiscountPercent = discountPercent,
-                DiscountCents = discountCents,
+                DiscountCents = totalDiscountCents,
                 ReceiptRequested = request.ReceiptRequested,
                 ReceiptTaxId = request.ReceiptTaxId,
                 Items = Items.Select(x => new SaleItem
@@ -560,21 +568,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             IsBusy = false;
         }
-    }
-
-    public async Task MarkSalePrintedAsync(Sale sale, string? receiptTaxId)
-    {
-        var printedAt = DateTimeOffset.UtcNow;
-        var payload = JsonSerializer.Serialize(new
-        {
-            local_sale_id = sale.SaleId,
-            sale_id = sale.RemoteSaleId,
-            printed_at = printedAt.ToString("O"),
-            receipt_tax_id = string.IsNullOrWhiteSpace(receiptTaxId) ? sale.ReceiptTaxId : receiptTaxId
-        });
-
-        await _salesRepository.MarkAsPrintedAsync(sale.SaleId, printedAt, string.IsNullOrWhiteSpace(receiptTaxId) ? sale.ReceiptTaxId : receiptTaxId, payload);
-        TriggerBackgroundSync();
     }
 
     public async Task<(StoreSettings? StoreSettings, PdvSettings Settings)> GetPrintContextAsync()
@@ -633,7 +626,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ItemCount));
         OnPropertyChanged(nameof(ItemCountFormatted));
         OnPropertyChanged(nameof(SelectedItemQuantityFormatted));
-        CancelSaleCommand.RaiseCanExecuteChanged();
     }
 
     private void NotifySelectionMetrics()

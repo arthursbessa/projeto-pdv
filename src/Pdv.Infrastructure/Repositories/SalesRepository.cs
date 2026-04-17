@@ -41,8 +41,7 @@ INSERT INTO sales (
     discount_cents,
     discount_percent,
     receipt_requested,
-    receipt_tax_id,
-    printed_at)
+    receipt_tax_id)
 VALUES (
     $id,
     $createdAt,
@@ -60,8 +59,7 @@ VALUES (
     $discountCents,
     $discountPercent,
     $receiptRequested,
-    $receiptTaxId,
-    $printedAt);";
+    $receiptTaxId);";
         saleCommand.Parameters.AddWithValue("$id", sale.SaleId.ToString());
         saleCommand.Parameters.AddWithValue("$createdAt", sale.CreatedAt.ToString("O"));
         saleCommand.Parameters.AddWithValue("$totalCents", sale.TotalCents);
@@ -79,7 +77,6 @@ VALUES (
         saleCommand.Parameters.AddWithValue("$discountPercent", sale.DiscountPercent);
         saleCommand.Parameters.AddWithValue("$receiptRequested", sale.ReceiptRequested ? 1 : 0);
         saleCommand.Parameters.AddWithValue("$receiptTaxId", (object?)sale.ReceiptTaxId ?? DBNull.Value);
-        saleCommand.Parameters.AddWithValue("$printedAt", (object?)sale.PrintedAt?.ToString("O") ?? DBNull.Value);
         await saleCommand.ExecuteNonQueryAsync(cancellationToken);
 
         foreach (var item in sale.Items)
@@ -196,8 +193,7 @@ SELECT s.id,
        COALESCE(s.discount_percent, 0),
        COALESCE(s.discount_cents, 0),
        COALESCE(s.receipt_requested, 0),
-       s.receipt_tax_id,
-       s.printed_at
+       s.receipt_tax_id
 FROM sales s
 LEFT JOIN customers c ON c.id = s.customer_id
 LEFT JOIN users u ON u.id = s.operator_id
@@ -229,8 +225,7 @@ LIMIT 1;";
             DiscountPercent = saleReader.IsDBNull(13) ? 0m : saleReader.GetDecimal(13),
             DiscountCents = saleReader.IsDBNull(14) ? 0 : saleReader.GetInt32(14),
             ReceiptRequested = !saleReader.IsDBNull(15) && saleReader.GetInt32(15) == 1,
-            ReceiptTaxId = saleReader.IsDBNull(16) ? null : saleReader.GetString(16),
-            PrintedAt = saleReader.IsDBNull(17) ? (DateTimeOffset?)null : DateTimeOffset.Parse(saleReader.GetString(17), CultureInfo.InvariantCulture)
+            ReceiptTaxId = saleReader.IsDBNull(16) ? null : saleReader.GetString(16)
         };
 
         await saleReader.DisposeAsync();
@@ -289,7 +284,6 @@ ORDER BY si.rowid;";
             DiscountCents = saleMetadata.DiscountCents,
             ReceiptRequested = saleMetadata.ReceiptRequested,
             ReceiptTaxId = saleMetadata.ReceiptTaxId,
-            PrintedAt = saleMetadata.PrintedAt,
             Items = items
         };
     }
@@ -310,33 +304,6 @@ WHERE id = $id;";
         command.Parameters.AddWithValue("$id", localSaleId.ToString());
 
         await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public async Task MarkAsPrintedAsync(Guid saleId, DateTimeOffset printedAt, string? receiptTaxId, string? outboxPayloadJson = null, CancellationToken cancellationToken = default)
-    {
-        await using var connection = _connectionFactory.Create();
-        await connection.OpenAsync(cancellationToken);
-        using var tx = connection.BeginTransaction();
-
-        var command = connection.CreateCommand();
-        command.Transaction = tx;
-        command.CommandText = @"
-UPDATE sales
-SET printed_at = $printedAt,
-    receipt_requested = 1,
-    receipt_tax_id = COALESCE($receiptTaxId, receipt_tax_id)
-WHERE id = $saleId;";
-        command.Parameters.AddWithValue("$printedAt", printedAt.ToString("O"));
-        command.Parameters.AddWithValue("$receiptTaxId", (object?)receiptTaxId ?? DBNull.Value);
-        command.Parameters.AddWithValue("$saleId", saleId.ToString());
-        await command.ExecuteNonQueryAsync(cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(outboxPayloadJson))
-        {
-            await InsertOutboxEventAsync(connection, tx, "SalePrinted", outboxPayloadJson, cancellationToken);
-        }
-
-        tx.Commit();
     }
 
     public Task SaveRefundAsync(Guid saleId, string reason, IReadOnlyCollection<SaleRefundItem> items, string? operatorId, CancellationToken cancellationToken = default)

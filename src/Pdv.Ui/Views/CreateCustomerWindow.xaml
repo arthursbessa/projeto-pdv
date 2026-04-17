@@ -51,8 +51,8 @@
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Margin="0,0,12,14">
-                        <TextBlock Text="CPF" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                        <TextBox Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding Cpf, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="CPF/CNPJ" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <TextBox x:Name="CpfTextBox" Height="40" Padding="12,0" VerticalContentAlignment="Center" Text="{Binding Cpf, UpdateSourceTrigger=PropertyChanged}" TextChanged="CpfTextBox_TextChanged"/>
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Grid.Column="1" Margin="12,0,0,14">

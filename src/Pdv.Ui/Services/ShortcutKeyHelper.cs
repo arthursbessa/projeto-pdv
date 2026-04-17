@@ -8,6 +8,7 @@ public static class ShortcutKeyHelper
     [
         "Enter",
         "Escape",
+        "Space",
         "F1",
         "F2",
         "F3",
@@ -28,6 +29,7 @@ public static class ShortcutKeyHelper
         {
             Key.Return => "Enter",
             Key.Escape => "Escape",
+            Key.Space => "Space",
             _ => key.ToString()
         };
     }
@@ -38,6 +40,7 @@ public static class ShortcutKeyHelper
         {
             "Esc" => "Escape",
             "Return" => "Enter",
+            "Spacebar" => "Space",
             var value => value
         };
     }

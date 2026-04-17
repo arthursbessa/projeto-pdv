@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Infrastructure.Repositories;
 using Pdv.Ui.Services;
 
@@ -146,7 +147,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
 
         StoreName = string.IsNullOrWhiteSpace(store.StoreName) ? "Sua loja" : store.StoreName;
         TerminalName = string.IsNullOrWhiteSpace(store.TerminalName) ? "-" : store.TerminalName;
-        StoreDocument = string.IsNullOrWhiteSpace(store.Cnpj) ? "CNPJ nao informado" : $"CNPJ: {store.Cnpj}";
+        StoreDocument = string.IsNullOrWhiteSpace(store.Cnpj) ? "CNPJ nao informado" : $"CNPJ: {TextNormalization.FormatTaxIdPartial(store.Cnpj)}";
         StoreAddress = string.IsNullOrWhiteSpace(store.Address) ? "Endereco nao informado" : store.Address;
         StoreLogoPath = store.LogoLocalPath;
     }

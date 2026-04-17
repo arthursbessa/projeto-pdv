@@ -3,6 +3,7 @@ using System.Text.Json;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 
 namespace Pdv.Infrastructure.Api;
 
@@ -63,12 +64,12 @@ public sealed class HttpStoreSettingsApiClient : IStoreSettingsApiClient
 
         return new StoreSettings
         {
-            TerminalName = doc.RootElement.TryGetProperty("terminal", out var terminalEl) ? terminalEl.GetString() ?? string.Empty : string.Empty,
-            StoreName = settings.TryGetProperty("store_name", out var nameEl) ? nameEl.GetString() ?? "LOJA" : "LOJA",
-            Cnpj = settings.TryGetProperty("cnpj", out var cnpjEl) ? cnpjEl.GetString() ?? string.Empty : string.Empty,
-            Address = settings.TryGetProperty("address", out var addressEl) ? addressEl.GetString() ?? string.Empty : string.Empty,
-            Timezone = settings.TryGetProperty("timezone", out var tzEl) ? tzEl.GetString() ?? "America/Sao_Paulo" : "America/Sao_Paulo",
-            Currency = settings.TryGetProperty("currency", out var currencyEl) ? currencyEl.GetString() ?? "BRL" : "BRL",
+            TerminalName = doc.RootElement.TryGetProperty("terminal", out var terminalEl) ? TextNormalization.TrimToEmpty(terminalEl.GetString()) : string.Empty,
+            StoreName = settings.TryGetProperty("store_name", out var nameEl) ? TextNormalization.TrimToEmpty(nameEl.GetString()) : "LOJA",
+            Cnpj = settings.TryGetProperty("cnpj", out var cnpjEl) ? TextNormalization.FormatTaxIdPartial(cnpjEl.GetString()) : string.Empty,
+            Address = settings.TryGetProperty("address", out var addressEl) ? TextNormalization.TrimToEmpty(addressEl.GetString()) : string.Empty,
+            Timezone = settings.TryGetProperty("timezone", out var tzEl) ? TextNormalization.TrimToEmpty(tzEl.GetString()) : "America/Sao_Paulo",
+            Currency = settings.TryGetProperty("currency", out var currencyEl) ? TextNormalization.TrimToEmpty(currencyEl.GetString()) : "BRL",
             LogoUrl = logoUrl,
             LogoLocalPath = logoLocalPath,
             UpdatedAt = DateTimeOffset.UtcNow

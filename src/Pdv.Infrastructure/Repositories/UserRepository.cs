@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Infrastructure.Persistence;
 
 namespace Pdv.Infrastructure.Repositories;
@@ -24,7 +25,7 @@ public sealed class UserRepository : IUserRepository
 
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"SELECT id, username, full_name, password_hash, active, created_at, updated_at FROM users WHERE lower(username) = lower($username) LIMIT 1;";
-        cmd.Parameters.AddWithValue("$username", username.Trim());
+        cmd.Parameters.AddWithValue("$username", TextNormalization.TrimToEmpty(username));
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
@@ -49,8 +50,9 @@ public sealed class UserRepository : IUserRepository
 
         var cmd = connection.CreateCommand();
         cmd.CommandText = @"SELECT id, username, full_name, password_hash, active, created_at, updated_at FROM users WHERE $query = '' OR username LIKE $like OR full_name LIKE $like ORDER BY active DESC, username ASC;";
-        cmd.Parameters.AddWithValue("$query", query?.Trim() ?? string.Empty);
-        cmd.Parameters.AddWithValue("$like", $"%{query?.Trim() ?? string.Empty}%");
+        var normalizedQuery = TextNormalization.TrimToEmpty(query);
+        cmd.Parameters.AddWithValue("$query", normalizedQuery);
+        cmd.Parameters.AddWithValue("$like", $"%{normalizedQuery}%");
 
         var result = new List<UserAccount>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -170,8 +172,8 @@ ON CONFLICT(id) DO UPDATE SET
     private static void BindUser(Microsoft.Data.Sqlite.SqliteCommand cmd, UserAccount user, bool encryptPasswordHash)
     {
         cmd.Parameters.AddWithValue("$id", user.Id);
-        cmd.Parameters.AddWithValue("$username", user.Username.Trim());
-        cmd.Parameters.AddWithValue("$fullName", user.FullName.Trim());
+        cmd.Parameters.AddWithValue("$username", TextNormalization.TrimToEmpty(user.Username));
+        cmd.Parameters.AddWithValue("$fullName", TextNormalization.TrimToEmpty(user.FullName));
         cmd.Parameters.AddWithValue("$passwordHash", encryptPasswordHash ? EncryptHash(user.PasswordHash) : user.PasswordHash);
         cmd.Parameters.AddWithValue("$active", user.Active ? 1 : 0);
         cmd.Parameters.AddWithValue("$createdAt", user.CreatedAt.ToString("O"));

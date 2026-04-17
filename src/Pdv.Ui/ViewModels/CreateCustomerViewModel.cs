@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
@@ -88,7 +89,7 @@ public sealed class CreateCustomerViewModel : INotifyPropertyChanged
     {
         CustomerId = customer.Id;
         Name = customer.Name;
-        Cpf = customer.Cpf;
+        Cpf = TextNormalization.FormatTaxIdPartial(customer.Cpf);
         Phone = customer.Phone;
         Email = customer.Email;
         Address = customer.Address;
@@ -119,12 +120,12 @@ public sealed class CreateCustomerViewModel : INotifyPropertyChanged
             var customer = new CustomerRecord
             {
                 Id = CustomerId,
-                Name = Name.Trim(),
-                Cpf = Cpf.Trim(),
-                Phone = Phone.Trim(),
-                Email = Email.Trim(),
-                Address = Address.Trim(),
-                Notes = Notes.Trim(),
+                Name = TextNormalization.TrimToEmpty(Name),
+                Cpf = TextNormalization.FormatTaxId(Cpf) ?? string.Empty,
+                Phone = TextNormalization.TrimToEmpty(Phone),
+                Email = TextNormalization.TrimToEmpty(Email),
+                Address = TextNormalization.TrimToEmpty(Address),
+                Notes = TextNormalization.TrimToEmpty(Notes),
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             };

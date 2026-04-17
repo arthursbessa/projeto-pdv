@@ -82,7 +82,6 @@ public sealed class SyncService
         {
             "CashRegisterOpened" => 0,
             "SaleCreated" => 1,
-            "SalePrinted" => 1,
             "SaleRefundCreated" => 1,
             "ProductUpserted" => 1,
             "CashWithdrawalCreated" => 1,
@@ -99,25 +98,6 @@ public sealed class SyncService
                 await SendSaleAsync(outboxEvent.PayloadJson, cancellationToken);
                 break;
             case "SalePrinted":
-                {
-                    var payloadNode = JsonNode.Parse(outboxEvent.PayloadJson)?.AsObject() ?? [];
-                    if (payloadNode["sale_id"] is null && payloadNode["local_sale_id"] is not null)
-                    {
-                        if (Guid.TryParse(payloadNode["local_sale_id"]!.ToString(), out var localSaleId))
-                        {
-                            var sale = await _salesRepository.FindByIdAsync(localSaleId, cancellationToken);
-                            if (sale is null || string.IsNullOrWhiteSpace(sale.RemoteSaleId))
-                            {
-                                throw new RemoteSessionNotLinkedException(localSaleId.ToString());
-                            }
-
-                            payloadNode["sale_id"] = sale.RemoteSaleId;
-                        }
-                    }
-
-                    payloadNode.Remove("local_sale_id");
-                    await _salesApiClient.MarkPrintedAsync(payloadNode.ToJsonString(), cancellationToken);
-                }
                 break;
             case "SaleRefundCreated":
                 {

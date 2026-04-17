@@ -3,6 +3,7 @@ using System.Text.Json;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 
 namespace Pdv.Infrastructure.Api;
 
@@ -29,13 +30,13 @@ public sealed class HttpSuppliersApiClient : ISuppliersApiClient
         var endpoint = $"{_options.FunctionsBaseUrl.TrimEnd('/')}/pdv-suppliers";
         var payload = JsonSerializer.Serialize(new
         {
-            name = requestModel.Name,
-            cnpj = string.IsNullOrWhiteSpace(requestModel.Cnpj) ? null : requestModel.Cnpj,
-            contact = string.IsNullOrWhiteSpace(requestModel.Contact) ? null : requestModel.Contact,
-            phone = string.IsNullOrWhiteSpace(requestModel.Phone) ? null : requestModel.Phone,
-            email = string.IsNullOrWhiteSpace(requestModel.Email) ? null : requestModel.Email,
+            name = TextNormalization.TrimToEmpty(requestModel.Name),
+            cnpj = TextNormalization.FormatTaxId(requestModel.Cnpj),
+            contact = TextNormalization.TrimToNull(requestModel.Contact),
+            phone = TextNormalization.TrimToNull(requestModel.Phone),
+            email = TextNormalization.TrimToNull(requestModel.Email),
             avg_delivery_days = requestModel.AvgDeliveryDays,
-            notes = string.IsNullOrWhiteSpace(requestModel.Notes) ? null : requestModel.Notes
+            notes = TextNormalization.TrimToNull(requestModel.Notes)
         });
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
@@ -63,7 +64,7 @@ public sealed class HttpSuppliersApiClient : ISuppliersApiClient
         return new LookupOption
         {
             Id = supplierElement.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? string.Empty : string.Empty,
-            Name = supplierElement.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? requestModel.Name : requestModel.Name
+            Name = supplierElement.TryGetProperty("name", out var nameEl) ? TextNormalization.TrimToEmpty(nameEl.GetString()) : TextNormalization.TrimToEmpty(requestModel.Name)
         };
     }
 }

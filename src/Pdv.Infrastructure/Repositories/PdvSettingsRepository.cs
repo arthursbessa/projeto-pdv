@@ -20,8 +20,7 @@ public sealed class PdvSettingsRepository : IPdvSettingsRepository
 
         var command = connection.CreateCommand();
         command.CommandText = @"
-SELECT default_discount_percent,
-       product_text_case,
+SELECT product_text_case,
        ask_printer_before_print,
        preferred_printer_name,
        shortcut_add_item,
@@ -41,17 +40,16 @@ LIMIT 1;";
 
         return new PdvSettings
         {
-            DefaultDiscountPercent = reader.IsDBNull(0) ? 5m : reader.GetDecimal(0),
-            ProductTextCase = reader.IsDBNull(1) || !Enum.TryParse<ProductTextCaseMode>(reader.GetString(1), true, out var productTextCase)
+            ProductTextCase = reader.IsDBNull(0) || !Enum.TryParse<ProductTextCaseMode>(reader.GetString(0), true, out var productTextCase)
                 ? ProductTextCaseMode.Original
                 : productTextCase,
-            AskPrinterBeforePrint = !reader.IsDBNull(2) && reader.GetInt32(2) == 1,
-            PreferredPrinterName = reader.IsDBNull(3) ? null : reader.GetString(3),
-            ShortcutAddItem = reader.IsDBNull(4) ? "Enter" : reader.GetString(4),
-            ShortcutFinalizeSale = reader.IsDBNull(5) ? "F2" : reader.GetString(5),
-            ShortcutSearchProduct = reader.IsDBNull(6) ? "F3" : reader.GetString(6),
-            ShortcutRemoveItem = reader.IsDBNull(7) ? "F4" : reader.GetString(7),
-            ShortcutCancelSale = reader.IsDBNull(8) ? "Escape" : reader.GetString(8)
+            AskPrinterBeforePrint = !reader.IsDBNull(1) && reader.GetInt32(1) == 1,
+            PreferredPrinterName = reader.IsDBNull(2) ? null : reader.GetString(2),
+            ShortcutAddItem = reader.IsDBNull(3) ? "Enter" : reader.GetString(3),
+            ShortcutFinalizeSale = reader.IsDBNull(4) ? "F2" : reader.GetString(4),
+            ShortcutSearchProduct = reader.IsDBNull(5) ? "F3" : reader.GetString(5),
+            ShortcutRemoveItem = reader.IsDBNull(6) ? "F4" : reader.GetString(6),
+            ShortcutCancelSale = reader.IsDBNull(7) ? "Space" : reader.GetString(7)
         };
     }
 
@@ -64,7 +62,6 @@ LIMIT 1;";
         command.CommandText = @"
 INSERT INTO pdv_settings (
     id,
-    default_discount_percent,
     product_text_case,
     ask_printer_before_print,
     preferred_printer_name,
@@ -76,7 +73,6 @@ INSERT INTO pdv_settings (
     updated_at)
 VALUES (
     1,
-    $defaultDiscountPercent,
     $productTextCase,
     $askPrinterBeforePrint,
     $preferredPrinterName,
@@ -87,7 +83,6 @@ VALUES (
     $shortcutCancelSale,
     $updatedAt)
 ON CONFLICT(id) DO UPDATE SET
-    default_discount_percent = excluded.default_discount_percent,
     product_text_case = excluded.product_text_case,
     ask_printer_before_print = excluded.ask_printer_before_print,
     preferred_printer_name = excluded.preferred_printer_name,
@@ -98,7 +93,6 @@ ON CONFLICT(id) DO UPDATE SET
     shortcut_cancel_sale = excluded.shortcut_cancel_sale,
     updated_at = excluded.updated_at;";
 
-        command.Parameters.AddWithValue("$defaultDiscountPercent", settings.DefaultDiscountPercent);
         command.Parameters.AddWithValue("$productTextCase", settings.ProductTextCase.ToString());
         command.Parameters.AddWithValue("$askPrinterBeforePrint", settings.AskPrinterBeforePrint ? 1 : 0);
         command.Parameters.AddWithValue("$preferredPrinterName", (object?)settings.PreferredPrinterName ?? DBNull.Value);

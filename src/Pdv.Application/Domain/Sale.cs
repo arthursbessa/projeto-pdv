@@ -19,7 +19,6 @@ public sealed class Sale
     public int DiscountCents { get; init; }
     public bool ReceiptRequested { get; init; }
     public string? ReceiptTaxId { get; init; }
-    public DateTimeOffset? PrintedAt { get; init; }
     public IReadOnlyCollection<SaleItem> Items { get; init; } = [];
     public int SubtotalCents => Items.Sum(x => x.SubtotalCents);
     public int TotalCents => Math.Max(SubtotalCents - DiscountCents, 0);

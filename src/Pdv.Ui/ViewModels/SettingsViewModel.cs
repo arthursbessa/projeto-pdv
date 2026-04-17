@@ -14,8 +14,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private readonly IPdvSettingsRepository _settingsRepository;
     private readonly IErrorFileLogger _errorLogger;
     private bool _isBusy;
-    private string _statusMessage = "Configure atalhos, impressao, desconto default e exibicao de produtos.";
-    private string _defaultDiscountPercentInput = "5";
+    private string _statusMessage = "Configure atalhos, impressao e exibicao de produtos.";
     private bool _askPrinterBeforePrint = true;
     private string? _preferredPrinterName;
     private string _productTextCaseInput = "Original";
@@ -37,7 +36,6 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public bool IsBusy { get => _isBusy; private set => SetField(ref _isBusy, value); }
     public string StatusMessage { get => _statusMessage; private set => SetField(ref _statusMessage, value); }
-    public string DefaultDiscountPercentInput { get => _defaultDiscountPercentInput; set => SetField(ref _defaultDiscountPercentInput, value); }
     public bool AskPrinterBeforePrint { get => _askPrinterBeforePrint; set => SetField(ref _askPrinterBeforePrint, value); }
     public string? PreferredPrinterName { get => _preferredPrinterName; set => SetField(ref _preferredPrinterName, value); }
     public string ProductTextCaseInput { get => _productTextCaseInput; set => SetField(ref _productTextCaseInput, value); }
@@ -50,7 +48,6 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     public async Task LoadAsync()
     {
         var settings = await _settingsRepository.GetCurrentAsync();
-        DefaultDiscountPercentInput = settings.DefaultDiscountPercent.ToString("0.##");
         ProductTextCaseInput = ProductTextFormatter.ToDisplayLabel(settings.ProductTextCase);
         AskPrinterBeforePrint = settings.AskPrinterBeforePrint;
         PreferredPrinterName = settings.PreferredPrinterName;
@@ -76,15 +73,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public async Task<bool> SaveAsync()
     {
-        if (!decimal.TryParse(DefaultDiscountPercentInput.Replace(",", "."), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var discountPercent))
-        {
-            StatusMessage = "Informe um percentual de desconto valido.";
-            return false;
-        }
-
         var settings = new PdvSettings
         {
-            DefaultDiscountPercent = Math.Clamp(discountPercent, 0m, 100m),
             ProductTextCase = ProductTextFormatter.ParseDisplayLabel(ProductTextCaseInput),
             AskPrinterBeforePrint = AskPrinterBeforePrint,
             PreferredPrinterName = string.IsNullOrWhiteSpace(PreferredPrinterName) ? null : PreferredPrinterName,

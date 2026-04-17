@@ -1,3 +1,5 @@
+using Pdv.Application.Utilities;
+
 namespace Pdv.Ui.ViewModels;
 
 public sealed class CustomerLookupItemViewModel
@@ -7,5 +9,5 @@ public sealed class CustomerLookupItemViewModel
     public string Cpf { get; init; } = string.Empty;
     public string Phone { get; init; } = string.Empty;
     public string Email { get; init; } = string.Empty;
-    public string DisplayText => string.IsNullOrWhiteSpace(Cpf) ? Name : $"{Name} - {Cpf}";
+    public string DisplayText => string.IsNullOrWhiteSpace(Cpf) ? Name : $"{Name} - {TextNormalization.FormatTaxIdPartial(Cpf)}";
 }

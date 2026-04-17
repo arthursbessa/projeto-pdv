@@ -8,15 +8,16 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Xps;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Ui.Formatting;
 
 namespace Pdv.Ui.Services;
 
-public static class FiscalCouponPrinter
+public static class ReceiptPrinter
 {
     public static bool Print(Window owner, Sale sale, string? receiptTaxId, StoreSettings? storeSettings, PdvSettings pdvSettings)
     {
-        var document = BuildFiscalCouponDocument(sale, receiptTaxId, 280, storeSettings, pdvSettings);
+        var document = BuildReceiptDocument(sale, receiptTaxId, 280, storeSettings, pdvSettings);
 
         if (pdvSettings.AskPrinterBeforePrint || string.IsNullOrWhiteSpace(pdvSettings.PreferredPrinterName))
         {
@@ -30,7 +31,7 @@ public static class FiscalCouponPrinter
                 return false;
             }
 
-            printDialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "Cupom Fiscal");
+            printDialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "Comprovante de venda");
             return true;
         }
 
@@ -49,9 +50,9 @@ public static class FiscalCouponPrinter
         return true;
     }
 
-    private static FlowDocument BuildFiscalCouponDocument(Sale sale, string? receiptTaxId, double printableAreaWidth, StoreSettings? storeSettings, PdvSettings pdvSettings)
+    private static FlowDocument BuildReceiptDocument(Sale sale, string? receiptTaxId, double printableAreaWidth, StoreSettings? storeSettings, PdvSettings pdvSettings)
     {
-        var cupomText = BuildFiscalCouponText(sale, receiptTaxId, storeSettings, pdvSettings);
+        var receiptText = BuildReceiptText(sale, receiptTaxId, storeSettings, pdvSettings);
         var document = new FlowDocument
         {
             FontFamily = new FontFamily("Consolas"),
@@ -77,7 +78,7 @@ public static class FiscalCouponPrinter
             });
         }
 
-        document.Blocks.Add(new Paragraph(new Run(cupomText))
+        document.Blocks.Add(new Paragraph(new Run(receiptText))
         {
             Margin = new Thickness(0)
         });
@@ -120,23 +121,25 @@ public static class FiscalCouponPrinter
         return blackAndWhite;
     }
 
-    private static string BuildFiscalCouponText(Sale sale, string? receiptTaxId, StoreSettings? storeSettings, PdvSettings pdvSettings)
+    private static string BuildReceiptText(Sale sale, string? receiptTaxId, StoreSettings? storeSettings, PdvSettings pdvSettings)
     {
         const int width = 44;
         var sb = new StringBuilder();
 
         var safeStoreName = string.IsNullOrWhiteSpace(storeSettings?.StoreName) ? "LOJA" : storeSettings!.StoreName;
         var safeStoreAddress = string.IsNullOrWhiteSpace(storeSettings?.Address) ? "ENDERECO NAO INFORMADO" : storeSettings!.Address;
-        var safeStoreCnpj = string.IsNullOrWhiteSpace(storeSettings?.Cnpj) ? "NAO INFORMADO" : storeSettings!.Cnpj;
+        var safeStoreCnpj = string.IsNullOrWhiteSpace(storeSettings?.Cnpj)
+            ? "NAO INFORMADO"
+            : TextNormalization.FormatTaxIdPartial(storeSettings!.Cnpj);
 
         sb.AppendLine(Center(safeStoreName.ToUpperInvariant(), width));
         sb.AppendLine(Center(safeStoreAddress.ToUpperInvariant(), width));
         sb.AppendLine($"CNPJ:{safeStoreCnpj}");
         sb.AppendLine(new string('-', width));
-        sb.AppendLine(Center("CUPOM FISCAL", width));
+        sb.AppendLine(Center("COMPROVANTE DE VENDA", width));
         if (!string.IsNullOrWhiteSpace(receiptTaxId))
         {
-            sb.AppendLine($"CPF/CNPJ:{receiptTaxId}");
+            sb.AppendLine($"CPF/CNPJ:{TextNormalization.FormatTaxIdPartial(receiptTaxId)}");
         }
         sb.AppendLine(new string('-', width));
         sb.AppendLine("ITEM CODIGO      DESCRICAO          VL ITEM");

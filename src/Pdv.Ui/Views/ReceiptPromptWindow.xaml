@@ -1,7 +1,7 @@
 <Window x:Class="Pdv.Ui.Views.ReceiptPromptWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="CPF/CNPJ do cupom"
+        Title="CPF/CNPJ do comprovante"
         Height="250"
         Width="420"
         WindowStartupLocation="CenterOwner"
@@ -41,8 +41,8 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <TextBlock Text="CPF/CNPJ do cupom" FontSize="22" FontWeight="Bold" Foreground="#153A73"/>
-            <TextBlock Text="Opcional. Se quiser, informe CPF ou CNPJ para imprimir no cupom." Margin="0,4,0,0" Foreground="#64748B" FontSize="13" TextWrapping="Wrap"/>
+            <TextBlock Text="CPF/CNPJ do comprovante" FontSize="22" FontWeight="Bold" Foreground="#153A73"/>
+            <TextBlock Text="Opcional. Se quiser, informe CPF ou CNPJ para imprimir no comprovante." Margin="0,4,0,0" Foreground="#64748B" FontSize="13" TextWrapping="Wrap"/>
         </StackPanel>
 
         <Border Grid.Row="1"

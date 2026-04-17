@@ -91,6 +91,7 @@ public sealed class MenuViewModel : INotifyPropertyChanged
         IntegrationStatuses.Add(BuildStatus("Encerramento de caixa", "CashRegisterClosed", pendingByType));
         IntegrationStatuses.Add(BuildStatus("Sangria", "CashWithdrawalCreated", pendingByType));
         IntegrationStatuses.Add(BuildStatus("Vendas", "SaleCreated", pendingByType));
+        IntegrationStatuses.Add(BuildStatus("Clientes", "CustomerUpserted", pendingByType));
         IntegrationStatuses.Add(BuildStatus("Produtos", "ProductUpserted", pendingByType));
         IntegrationStatuses.Add(BuildStatus("Devoluções", "SaleRefundCreated", pendingByType));
     }

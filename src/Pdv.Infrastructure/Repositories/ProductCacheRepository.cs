@@ -1,6 +1,8 @@
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Infrastructure.Persistence;
+using Pdv.Infrastructure.Utilities;
 
 namespace Pdv.Infrastructure.Repositories;
 
@@ -36,17 +38,17 @@ LIMIT 1;";
         await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
-        var like = $"%{query?.Trim() ?? string.Empty}%";
+        var like = SearchPatternHelper.BuildLikePattern(query);
         command.CommandText = @"
 SELECT id, sku, barcode, description, category_id, supplier_id, ncm, cfop, cost_price_cents, price_cents, active, created_at, updated_at
 FROM products
 WHERE $query = ''
-   OR barcode LIKE $like
-   OR description LIKE $like
-   OR COALESCE(sku, '') LIKE $like
+   OR barcode LIKE $like ESCAPE '\'
+   OR description LIKE $like ESCAPE '\'
+   OR COALESCE(sku, '') LIKE $like ESCAPE '\'
 ORDER BY active DESC, description ASC
 LIMIT 500;";
-        command.Parameters.AddWithValue("$query", query?.Trim() ?? string.Empty);
+        command.Parameters.AddWithValue("$query", TextNormalization.TrimToEmpty(query));
         command.Parameters.AddWithValue("$like", like);
 
         var result = new List<ProductCacheItem>();
@@ -194,13 +196,13 @@ VALUES ($id, $sku, $barcode, $description, $categoryId, $supplierId, $ncm, $cfop
     private static void BindProduct(Microsoft.Data.Sqlite.SqliteCommand cmd, ProductCacheItem product)
     {
         cmd.Parameters.AddWithValue("$id", product.ProductId);
-        cmd.Parameters.AddWithValue("$sku", string.IsNullOrWhiteSpace(product.Sku) ? DBNull.Value : product.Sku);
-        cmd.Parameters.AddWithValue("$barcode", product.Barcode);
-        cmd.Parameters.AddWithValue("$description", product.Description);
-        cmd.Parameters.AddWithValue("$categoryId", string.IsNullOrWhiteSpace(product.CategoryId) ? DBNull.Value : product.CategoryId);
-        cmd.Parameters.AddWithValue("$supplierId", string.IsNullOrWhiteSpace(product.SupplierId) ? DBNull.Value : product.SupplierId);
-        cmd.Parameters.AddWithValue("$ncm", string.IsNullOrWhiteSpace(product.Ncm) ? DBNull.Value : product.Ncm);
-        cmd.Parameters.AddWithValue("$cfop", string.IsNullOrWhiteSpace(product.Cfop) ? DBNull.Value : product.Cfop);
+        cmd.Parameters.AddWithValue("$sku", string.IsNullOrWhiteSpace(product.Sku) ? DBNull.Value : TextNormalization.TrimToEmpty(product.Sku));
+        cmd.Parameters.AddWithValue("$barcode", TextNormalization.TrimToEmpty(product.Barcode));
+        cmd.Parameters.AddWithValue("$description", TextNormalization.TrimToEmpty(product.Description));
+        cmd.Parameters.AddWithValue("$categoryId", string.IsNullOrWhiteSpace(product.CategoryId) ? DBNull.Value : TextNormalization.TrimToEmpty(product.CategoryId));
+        cmd.Parameters.AddWithValue("$supplierId", string.IsNullOrWhiteSpace(product.SupplierId) ? DBNull.Value : TextNormalization.TrimToEmpty(product.SupplierId));
+        cmd.Parameters.AddWithValue("$ncm", string.IsNullOrWhiteSpace(product.Ncm) ? DBNull.Value : TextNormalization.TrimToEmpty(product.Ncm));
+        cmd.Parameters.AddWithValue("$cfop", string.IsNullOrWhiteSpace(product.Cfop) ? DBNull.Value : TextNormalization.TrimToEmpty(product.Cfop));
         cmd.Parameters.AddWithValue("$costPriceCents", product.CostPriceCents);
         cmd.Parameters.AddWithValue("$priceCents", product.PriceCents);
         cmd.Parameters.AddWithValue("$active", product.Active ? 1 : 0);

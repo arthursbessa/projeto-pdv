@@ -277,6 +277,61 @@ public sealed class InfrastructureSchemaTests
         Assert.Equal(0, refundOutboxCount);
     }
 
+    [Fact]
+    public async Task SearchAsync_ShouldMatchProductBySeparatedTerms()
+    {
+        var dbPath = CreateTempDbPath();
+        var factory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(factory);
+        var productRepository = new ProductCacheRepository(factory);
+
+        await initializer.InitializeAsync();
+
+        await productRepository.AddAsync(new ProductCacheItem
+        {
+            ProductId = Guid.NewGuid().ToString(),
+            Barcode = "789000000099",
+            Description = "COCA COLA GELADA",
+            PriceCents = 500,
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+
+        var matches = await productRepository.SearchAsync("COCA GELADA");
+
+        Assert.Single(matches);
+        Assert.Equal("COCA COLA GELADA", matches[0].Description);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldMatchCustomerBySeparatedTerms()
+    {
+        var dbPath = CreateTempDbPath();
+        var factory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(factory);
+        var customerRepository = new CustomerRepository(factory);
+
+        await initializer.InitializeAsync();
+
+        await customerRepository.UpsertAsync(new CustomerRecord
+        {
+            Id = Guid.NewGuid().ToString(),
+            Cpf = "123.456.789-00",
+            Name = "JOAO DA SILVA",
+            Phone = "(11) 99999-9999",
+            Email = "joao@example.com",
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+
+        var matches = await customerRepository.SearchAsync("JOAO SILVA");
+
+        Assert.Single(matches);
+        Assert.Equal("JOAO DA SILVA", matches[0].Name);
+    }
+
 
     [Fact]
     public async Task CashStatusSnapshot_ShouldReturnCurrentBalanceAndTransactions()

@@ -152,7 +152,6 @@ public sealed class SyncServiceTests
     private sealed class FakeSalesApiClient : ISalesApiClient
     {
         public List<string> Payloads { get; } = [];
-        public List<string> PrintedPayloads { get; } = [];
 
         public Task<SaleSyncResult> SendSaleAsync(string payloadJson, CancellationToken cancellationToken = default)
         {
@@ -162,12 +161,6 @@ public sealed class SyncServiceTests
                 RemoteSaleId = "remote-sale-1",
                 SaleNumber = 1042
             });
-        }
-
-        public Task MarkPrintedAsync(string payloadJson, CancellationToken cancellationToken = default)
-        {
-            PrintedPayloads.Add(payloadJson);
-            return Task.CompletedTask;
         }
     }
 
@@ -200,7 +193,6 @@ public sealed class SyncServiceTests
     private sealed class FakeSalesRepository : ISalesRepository
     {
         public List<(Guid LocalSaleId, string RemoteSaleId, int? SaleNumber)> SavedReferences { get; } = [];
-        public List<(Guid SaleId, DateTimeOffset PrintedAt, string? ReceiptTaxId, string? Payload)> PrintedSales { get; } = [];
 
         public Task SaveSaleWithOutboxAsync(Sale sale, string outboxPayloadJson, string? cashRegisterSessionId = null, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
@@ -214,12 +206,6 @@ public sealed class SyncServiceTests
         public Task SaveRemoteSaleReferenceAsync(Guid localSaleId, string remoteSaleId, int? saleNumber, CancellationToken cancellationToken = default)
         {
             SavedReferences.Add((localSaleId, remoteSaleId, saleNumber));
-            return Task.CompletedTask;
-        }
-
-        public Task MarkAsPrintedAsync(Guid saleId, DateTimeOffset printedAt, string? receiptTaxId, string? outboxPayloadJson = null, CancellationToken cancellationToken = default)
-        {
-            PrintedSales.Add((saleId, printedAt, receiptTaxId, outboxPayloadJson));
             return Task.CompletedTask;
         }
 

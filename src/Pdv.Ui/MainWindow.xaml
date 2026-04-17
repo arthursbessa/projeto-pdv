@@ -9,6 +9,8 @@
         MinWidth="1280"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
+        Closing="Window_Closing"
+        PreviewKeyDown="Window_PreviewKeyDown"
         KeyDown="Window_KeyDown"
         Background="#0B1730">
     <Window.Resources>
@@ -326,9 +328,9 @@
                                     <TextBlock Text="{Binding RemoveItemShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Command="{Binding CancelSaleCommand}" Background="#B91C1C" BorderBrush="#FCA5A5">
+                            <Button Click="CancelSale_Click" Background="#B91C1C" BorderBrush="#FCA5A5" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
                                 <StackPanel>
-                                    <TextBlock Text="Cancelar cupom" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Cancelar comprovante" HorizontalAlignment="Center"/>
                                     <TextBlock Text="{Binding CancelSaleShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Button>

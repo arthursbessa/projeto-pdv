@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
@@ -73,13 +74,13 @@ public sealed class CreateSupplierViewModel : INotifyPropertyChanged
         {
             CreatedSupplier = await _suppliersApiClient.CreateAsync(new SupplierCreateRequest
             {
-                Name = Name.Trim(),
-                Cnpj = string.IsNullOrWhiteSpace(Cnpj) ? null : Cnpj.Trim(),
-                Contact = string.IsNullOrWhiteSpace(Contact) ? null : Contact.Trim(),
-                Phone = string.IsNullOrWhiteSpace(Phone) ? null : Phone.Trim(),
-                Email = string.IsNullOrWhiteSpace(Email) ? null : Email.Trim(),
+                Name = TextNormalization.TrimToEmpty(Name),
+                Cnpj = TextNormalization.FormatTaxId(Cnpj),
+                Contact = TextNormalization.TrimToNull(Contact),
+                Phone = TextNormalization.TrimToNull(Phone),
+                Email = TextNormalization.TrimToNull(Email),
                 AvgDeliveryDays = AvgDeliveryDays,
-                Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes.Trim()
+                Notes = TextNormalization.TrimToNull(Notes)
             });
             StatusMessage = "Fornecedor criado com sucesso.";
             StatusBrush = Brushes.SeaGreen;

@@ -61,7 +61,7 @@
                       MouseDoubleClick="CustomersDataGrid_MouseDoubleClick">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="*"/>
-                    <DataGridTextColumn Header="CPF" Binding="{Binding Cpf}" Width="180"/>
+                    <DataGridTextColumn Header="CPF/CNPJ" Binding="{Binding Cpf}" Width="180"/>
                     <DataGridTextColumn Header="Telefone" Binding="{Binding Phone}" Width="170"/>
                     <DataGridTextColumn Header="E-mail" Binding="{Binding Email}" Width="220"/>
                     <DataGridTemplateColumn Header="Ações" Width="72">

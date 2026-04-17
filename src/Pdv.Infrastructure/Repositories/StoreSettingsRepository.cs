@@ -1,5 +1,6 @@
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Infrastructure.Persistence;
 
 namespace Pdv.Infrastructure.Repositories;
@@ -29,14 +30,14 @@ public sealed class StoreSettingsRepository : IStoreSettingsRepository
 
         return new StoreSettings
         {
-            StoreName = reader.GetString(0),
-            TerminalName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-            Cnpj = reader.GetString(2),
-            Address = reader.GetString(3),
-            Timezone = reader.GetString(4),
-            Currency = reader.GetString(5),
-            LogoUrl = reader.GetString(6),
-            LogoLocalPath = reader.GetString(7),
+            StoreName = TextNormalization.TrimToEmpty(reader.GetString(0)),
+            TerminalName = reader.IsDBNull(1) ? string.Empty : TextNormalization.TrimToEmpty(reader.GetString(1)),
+            Cnpj = TextNormalization.FormatTaxIdPartial(reader.GetString(2)),
+            Address = TextNormalization.TrimToEmpty(reader.GetString(3)),
+            Timezone = TextNormalization.TrimToEmpty(reader.GetString(4)),
+            Currency = TextNormalization.TrimToEmpty(reader.GetString(5)),
+            LogoUrl = TextNormalization.TrimToEmpty(reader.GetString(6)),
+            LogoLocalPath = TextNormalization.TrimToEmpty(reader.GetString(7)),
             UpdatedAt = DateTimeOffset.Parse(reader.GetString(8))
         };
     }
@@ -61,14 +62,14 @@ ON CONFLICT(id) DO UPDATE SET
     logo_local_path = excluded.logo_local_path,
     updated_at = excluded.updated_at;";
 
-        cmd.Parameters.AddWithValue("$storeName", settings.StoreName);
-        cmd.Parameters.AddWithValue("$terminalName", settings.TerminalName);
-        cmd.Parameters.AddWithValue("$cnpj", settings.Cnpj);
-        cmd.Parameters.AddWithValue("$address", settings.Address);
-        cmd.Parameters.AddWithValue("$timezone", settings.Timezone);
-        cmd.Parameters.AddWithValue("$currency", settings.Currency);
-        cmd.Parameters.AddWithValue("$logoUrl", settings.LogoUrl);
-        cmd.Parameters.AddWithValue("$logoLocalPath", settings.LogoLocalPath);
+        cmd.Parameters.AddWithValue("$storeName", TextNormalization.TrimToEmpty(settings.StoreName));
+        cmd.Parameters.AddWithValue("$terminalName", TextNormalization.TrimToEmpty(settings.TerminalName));
+        cmd.Parameters.AddWithValue("$cnpj", TextNormalization.FormatTaxId(settings.Cnpj) ?? string.Empty);
+        cmd.Parameters.AddWithValue("$address", TextNormalization.TrimToEmpty(settings.Address));
+        cmd.Parameters.AddWithValue("$timezone", TextNormalization.TrimToEmpty(settings.Timezone));
+        cmd.Parameters.AddWithValue("$currency", TextNormalization.TrimToEmpty(settings.Currency));
+        cmd.Parameters.AddWithValue("$logoUrl", TextNormalization.TrimToEmpty(settings.LogoUrl));
+        cmd.Parameters.AddWithValue("$logoLocalPath", TextNormalization.TrimToEmpty(settings.LogoLocalPath));
         cmd.Parameters.AddWithValue("$updatedAt", settings.UpdatedAt.ToString("O"));
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);

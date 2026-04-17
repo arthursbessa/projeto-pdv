@@ -43,7 +43,7 @@ public partial class MenuWindow : Window
         }
 
         var window = new MainWindow { Owner = this, DataContext = App.Services.GetRequiredService<MainViewModel>() };
-        window.ShowDialog();
+        window.Show();
     }
 
     private void OpenIntegrations_Click(object sender, RoutedEventArgs e)

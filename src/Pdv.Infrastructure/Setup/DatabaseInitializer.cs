@@ -81,7 +81,6 @@ CREATE TABLE IF NOT EXISTS store_settings (
 
 CREATE TABLE IF NOT EXISTS pdv_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    default_discount_percent REAL NOT NULL DEFAULT 5,
     product_text_case TEXT NOT NULL DEFAULT 'Original',
     ask_printer_before_print INTEGER NOT NULL DEFAULT 1,
     preferred_printer_name TEXT NULL,
@@ -89,7 +88,7 @@ CREATE TABLE IF NOT EXISTS pdv_settings (
     shortcut_finalize_sale TEXT NOT NULL DEFAULT 'F2',
     shortcut_search_product TEXT NOT NULL DEFAULT 'F3',
     shortcut_remove_item TEXT NOT NULL DEFAULT 'F4',
-    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Escape',
+    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Space',
     updated_at TEXT NOT NULL
 );
 
@@ -150,7 +149,6 @@ CREATE TABLE IF NOT EXISTS sales (
     notes TEXT NULL,
     receipt_requested INTEGER NOT NULL DEFAULT 0,
     receipt_tax_id TEXT NULL,
-    printed_at TEXT NULL,
     FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id),
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (operator_id) REFERENCES users(id),
@@ -257,7 +255,6 @@ CREATE TABLE IF NOT EXISTS store_settings (
         createPdvSettings.CommandText = @"
 CREATE TABLE IF NOT EXISTS pdv_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    default_discount_percent REAL NOT NULL DEFAULT 5,
     product_text_case TEXT NOT NULL DEFAULT 'Original',
     ask_printer_before_print INTEGER NOT NULL DEFAULT 1,
     preferred_printer_name TEXT NULL,
@@ -265,7 +262,7 @@ CREATE TABLE IF NOT EXISTS pdv_settings (
     shortcut_finalize_sale TEXT NOT NULL DEFAULT 'F2',
     shortcut_search_product TEXT NOT NULL DEFAULT 'F3',
     shortcut_remove_item TEXT NOT NULL DEFAULT 'F4',
-    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Escape',
+    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Space',
     updated_at TEXT NOT NULL
 );";
         await createPdvSettings.ExecuteNonQueryAsync(cancellationToken);
@@ -284,7 +281,6 @@ CREATE TABLE IF NOT EXISTS pdv_settings (
         await EnsureColumnAsync(connection, "sales", "notes", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "receipt_requested", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "sales", "receipt_tax_id", "TEXT NULL", cancellationToken);
-        await EnsureColumnAsync(connection, "sales", "printed_at", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "products", "sku", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "products", "category_id", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "products", "supplier_id", "TEXT NULL", cancellationToken);
@@ -409,7 +405,6 @@ ON CONFLICT(id) DO UPDATE SET
         settingsCommand.CommandText = @"
 INSERT INTO pdv_settings (
     id,
-    default_discount_percent,
     product_text_case,
     ask_printer_before_print,
     preferred_printer_name,
@@ -419,7 +414,7 @@ INSERT INTO pdv_settings (
     shortcut_remove_item,
     shortcut_cancel_sale,
     updated_at)
-VALUES (1, 5, 'Original', 1, NULL, 'Enter', 'F2', 'F3', 'F4', 'Escape', $updatedAt)
+VALUES (1, 'Original', 1, NULL, 'Enter', 'F2', 'F3', 'F4', 'Space', $updatedAt)
 ON CONFLICT(id) DO NOTHING;";
         settingsCommand.Parameters.AddWithValue("$updatedAt", now);
         await settingsCommand.ExecuteNonQueryAsync(cancellationToken);

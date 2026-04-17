@@ -1,6 +1,8 @@
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Infrastructure.Persistence;
+using Pdv.Infrastructure.Utilities;
 
 namespace Pdv.Infrastructure.Repositories;
 
@@ -18,21 +20,22 @@ public sealed class CustomerRepository : ICustomerRepository
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
 
-        var normalizedQuery = query?.Trim() ?? string.Empty;
+        var normalizedQuery = TextNormalization.TrimToEmpty(query);
+        var likePattern = SearchPatternHelper.BuildLikePattern(normalizedQuery);
         var command = connection.CreateCommand();
         command.CommandText = @"
 SELECT id, document_number, name, phone, email, address, notes, active, created_at, updated_at
 FROM customers
 WHERE active = 1
   AND ($query = ''
-       OR name LIKE $like
-       OR document_number LIKE $like
-       OR phone LIKE $like
-       OR email LIKE $like)
+       OR name LIKE $like ESCAPE '\'
+       OR document_number LIKE $like ESCAPE '\'
+       OR phone LIKE $like ESCAPE '\'
+       OR email LIKE $like ESCAPE '\')
 ORDER BY name ASC
 LIMIT 200;";
         command.Parameters.AddWithValue("$query", normalizedQuery);
-        command.Parameters.AddWithValue("$like", $"%{normalizedQuery}%");
+        command.Parameters.AddWithValue("$like", likePattern);
 
         var customers = new List<CustomerRecord>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -81,12 +84,13 @@ ON CONFLICT(id) DO UPDATE SET
     updated_at = excluded.updated_at;";
 
         command.Parameters.AddWithValue("$id", customer.Id);
-        command.Parameters.AddWithValue("$documentNumber", customer.Cpf);
-        command.Parameters.AddWithValue("$name", customer.Name);
-        command.Parameters.AddWithValue("$phone", customer.Phone);
-        command.Parameters.AddWithValue("$email", customer.Email);
-        command.Parameters.AddWithValue("$address", customer.Address);
-        command.Parameters.AddWithValue("$notes", customer.Notes);
+        var documentNumber = TextNormalization.FormatTaxId(customer.Cpf);
+        command.Parameters.AddWithValue("$documentNumber", string.IsNullOrWhiteSpace(documentNumber) ? DBNull.Value : documentNumber);
+        command.Parameters.AddWithValue("$name", TextNormalization.TrimToEmpty(customer.Name));
+        command.Parameters.AddWithValue("$phone", TextNormalization.TrimToEmpty(customer.Phone));
+        command.Parameters.AddWithValue("$email", TextNormalization.TrimToEmpty(customer.Email));
+        command.Parameters.AddWithValue("$address", TextNormalization.TrimToEmpty(customer.Address));
+        command.Parameters.AddWithValue("$notes", TextNormalization.TrimToEmpty(customer.Notes));
         command.Parameters.AddWithValue("$active", customer.Active ? 1 : 0);
         command.Parameters.AddWithValue("$createdAt", customer.CreatedAt.ToString("O"));
         command.Parameters.AddWithValue("$updatedAt", customer.UpdatedAt.ToString("O"));
@@ -108,12 +112,12 @@ ON CONFLICT(id) DO UPDATE SET
     private static CustomerRecord ReadCustomer(Microsoft.Data.Sqlite.SqliteDataReader reader) => new()
     {
         Id = reader.GetString(0),
-        Cpf = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-        Name = reader.GetString(2),
-        Phone = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
-        Email = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
-        Address = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
-        Notes = reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
+        Cpf = reader.IsDBNull(1) ? string.Empty : TextNormalization.FormatTaxIdPartial(reader.GetString(1)),
+        Name = TextNormalization.TrimToEmpty(reader.GetString(2)),
+        Phone = reader.IsDBNull(3) ? string.Empty : TextNormalization.TrimToEmpty(reader.GetString(3)),
+        Email = reader.IsDBNull(4) ? string.Empty : TextNormalization.TrimToEmpty(reader.GetString(4)),
+        Address = reader.IsDBNull(5) ? string.Empty : TextNormalization.TrimToEmpty(reader.GetString(5)),
+        Notes = reader.IsDBNull(6) ? string.Empty : TextNormalization.TrimToEmpty(reader.GetString(6)),
         Active = reader.GetInt32(7) == 1,
         CreatedAt = DateTimeOffset.Parse(reader.GetString(8)),
         UpdatedAt = DateTimeOffset.Parse(reader.GetString(9))

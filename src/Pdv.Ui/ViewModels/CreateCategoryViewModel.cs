@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
@@ -60,7 +61,7 @@ public sealed class CreateCategoryViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            CreatedCategory = await _categoriesApiClient.CreateAsync(Name.Trim(), null);
+            CreatedCategory = await _categoriesApiClient.CreateAsync(TextNormalization.TrimToEmpty(Name), null);
             StatusMessage = "Categoria criada com sucesso.";
             StatusBrush = Brushes.SeaGreen;
             return true;

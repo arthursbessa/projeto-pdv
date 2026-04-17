@@ -3,6 +3,7 @@ using System.Text.Json;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Configuration;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 
 namespace Pdv.Infrastructure.Api;
 
@@ -67,18 +68,18 @@ public sealed class HttpProductsApiClient : IProductsApiClient
         var payload = JsonSerializer.Serialize(new
         {
             id = product.Id,
-            name = product.Name,
-            sku = product.Sku,
-            barcode = string.IsNullOrWhiteSpace(product.Barcode) ? null : product.Barcode,
-            category_id = string.IsNullOrWhiteSpace(product.CategoryId) ? null : product.CategoryId,
-            supplier_id = string.IsNullOrWhiteSpace(product.SupplierId) ? null : product.SupplierId,
-            ncm = string.IsNullOrWhiteSpace(product.Ncm) ? null : product.Ncm,
-            cfop = string.IsNullOrWhiteSpace(product.Cfop) ? null : product.Cfop,
+            name = TextNormalization.TrimToEmpty(product.Name),
+            sku = TextNormalization.TrimToEmpty(product.Sku),
+            barcode = TextNormalization.TrimToNull(product.Barcode),
+            category_id = TextNormalization.TrimToNull(product.CategoryId),
+            supplier_id = TextNormalization.TrimToNull(product.SupplierId),
+            ncm = TextNormalization.TrimToNull(product.Ncm),
+            cfop = TextNormalization.TrimToNull(product.Cfop),
             sale_price = product.PriceCents / 100m,
             cost_price = product.CostPriceCents / 100m,
             stock_quantity = product.StockQuantity,
             min_stock = product.MinStock,
-            unit = product.Unit,
+            unit = TextNormalization.TrimToEmpty(product.Unit),
             is_active = product.Active
         });
 
@@ -107,13 +108,13 @@ public sealed class HttpProductsApiClient : IProductsApiClient
         return new ProductAdminItem
         {
             Id = productElement.TryGetProperty("id", out var idEl) ? idEl.GetString() : product.Id,
-            Name = productElement.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? product.Name : product.Name,
-            Sku = productElement.TryGetProperty("sku", out var skuEl) ? skuEl.GetString() ?? product.Sku : product.Sku,
-            Barcode = productElement.TryGetProperty("barcode", out var barcodeEl) ? barcodeEl.GetString() ?? string.Empty : string.Empty,
-            CategoryId = productElement.TryGetProperty("category_id", out var categoryIdEl) ? categoryIdEl.GetString() : product.CategoryId,
-            SupplierId = productElement.TryGetProperty("supplier_id", out var supplierIdEl) ? supplierIdEl.GetString() : product.SupplierId,
-            Ncm = productElement.TryGetProperty("ncm", out var ncmEl) ? ncmEl.GetString() : product.Ncm,
-            Cfop = productElement.TryGetProperty("cfop", out var cfopEl) ? cfopEl.GetString() : product.Cfop,
+            Name = productElement.TryGetProperty("name", out var nameEl) ? TextNormalization.TrimToEmpty(nameEl.GetString()) : TextNormalization.TrimToEmpty(product.Name),
+            Sku = productElement.TryGetProperty("sku", out var skuEl) ? TextNormalization.TrimToEmpty(skuEl.GetString()) : TextNormalization.TrimToEmpty(product.Sku),
+            Barcode = productElement.TryGetProperty("barcode", out var barcodeEl) ? TextNormalization.TrimToEmpty(barcodeEl.GetString()) : string.Empty,
+            CategoryId = productElement.TryGetProperty("category_id", out var categoryIdEl) ? TextNormalization.TrimToNull(categoryIdEl.GetString()) : product.CategoryId,
+            SupplierId = productElement.TryGetProperty("supplier_id", out var supplierIdEl) ? TextNormalization.TrimToNull(supplierIdEl.GetString()) : product.SupplierId,
+            Ncm = productElement.TryGetProperty("ncm", out var ncmEl) ? TextNormalization.TrimToNull(ncmEl.GetString()) : product.Ncm,
+            Cfop = productElement.TryGetProperty("cfop", out var cfopEl) ? TextNormalization.TrimToNull(cfopEl.GetString()) : product.Cfop,
             PriceCents = productElement.TryGetProperty("sale_price", out var salePriceEl) && salePriceEl.TryGetDecimal(out var salePrice)
                 ? (int)Math.Round(salePrice * 100m)
                 : product.PriceCents,
@@ -126,7 +127,7 @@ public sealed class HttpProductsApiClient : IProductsApiClient
             MinStock = productElement.TryGetProperty("min_stock", out var minStockEl) && minStockEl.ValueKind == JsonValueKind.Number
                 ? minStockEl.GetInt32()
                 : product.MinStock,
-            Unit = productElement.TryGetProperty("unit", out var unitEl) ? unitEl.GetString() ?? product.Unit : product.Unit,
+            Unit = productElement.TryGetProperty("unit", out var unitEl) ? TextNormalization.TrimToEmpty(unitEl.GetString()) : TextNormalization.TrimToEmpty(product.Unit),
             Active = !productElement.TryGetProperty("is_active", out var activeEl) || activeEl.GetBoolean()
         };
     }

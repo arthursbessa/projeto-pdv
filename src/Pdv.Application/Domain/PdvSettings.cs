@@ -2,7 +2,6 @@ namespace Pdv.Application.Domain;
 
 public sealed class PdvSettings
 {
-    public decimal DefaultDiscountPercent { get; set; } = 5m;
     public ProductTextCaseMode ProductTextCase { get; set; } = ProductTextCaseMode.Original;
     public bool AskPrinterBeforePrint { get; set; } = true;
     public string? PreferredPrinterName { get; set; }
@@ -10,5 +9,5 @@ public sealed class PdvSettings
     public string ShortcutFinalizeSale { get; set; } = "F2";
     public string ShortcutSearchProduct { get; set; } = "F3";
     public string ShortcutRemoveItem { get; set; } = "F4";
-    public string ShortcutCancelSale { get; set; } = "Escape";
+    public string ShortcutCancelSale { get; set; } = "Space";
 }

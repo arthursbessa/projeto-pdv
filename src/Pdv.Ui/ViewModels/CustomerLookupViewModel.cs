@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Utilities;
 using Pdv.Ui.Services;
 
 namespace Pdv.Ui.ViewModels;
@@ -85,7 +86,7 @@ public sealed class CustomerLookupViewModel : INotifyPropertyChanged
 
     public async Task SearchAsync()
     {
-        var customers = await _customerRepository.SearchAsync(Query);
+        var customers = await _customerRepository.SearchAsync(TextNormalization.TrimToEmpty(Query));
         Customers.Clear();
 
         foreach (var customer in customers)
@@ -94,7 +95,7 @@ public sealed class CustomerLookupViewModel : INotifyPropertyChanged
             {
                 Id = customer.Id,
                 Name = customer.Name,
-                Cpf = customer.Cpf,
+                Cpf = TextNormalization.FormatTaxIdPartial(customer.Cpf),
                 Phone = customer.Phone,
                 Email = customer.Email
             });

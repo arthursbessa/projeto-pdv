@@ -19,17 +19,12 @@ public partial class SaleDetailsWindow : Window
         }
 
         var printContext = await vm.GetPrintContextAsync();
-        var printed = FiscalCouponPrinter.Print(
+        ReceiptPrinter.Print(
             this,
             vm.SelectedSaleDetails,
             vm.SelectedSaleDetails.ReceiptTaxId,
             printContext.StoreSettings,
             printContext.Settings);
-
-        if (printed)
-        {
-            await vm.MarkSelectedSalePrintedAsync(vm.SelectedSaleDetails.ReceiptTaxId);
-        }
     }
 
     private async void Refund_Click(object sender, RoutedEventArgs e)
