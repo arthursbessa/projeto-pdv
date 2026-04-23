@@ -60,22 +60,6 @@ public sealed class CustomerLookupViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            try
-            {
-                var remoteCustomers = await _customersApiClient.GetCustomersAsync();
-                foreach (var customer in remoteCustomers)
-                {
-                    await _customerRepository.UpsertAsync(customer);
-                }
-
-                StatusMessage = $"{remoteCustomers.Count} cliente(s) sincronizado(s).";
-            }
-            catch (Exception ex)
-            {
-                _errorLogger.LogError("Falha ao sincronizar clientes na busca manual", ex);
-                StatusMessage = "Sem conexao com a API. Exibindo clientes locais.";
-            }
-
             await SearchAsync();
         }
         finally
@@ -100,6 +84,8 @@ public sealed class CustomerLookupViewModel : INotifyPropertyChanged
                 Email = customer.Email
             });
         }
+
+        SelectedCustomer = Customers.FirstOrDefault();
 
         StatusMessage = Customers.Count == 0
             ? "Nenhum cliente encontrado."

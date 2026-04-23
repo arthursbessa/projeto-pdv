@@ -146,6 +146,8 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
     public string SelectedSaleChange => _selectedSaleDetails is null ? "-" : MoneyFormatter.FormatFromCents(_selectedSaleDetails.ChangeAmountCents);
     public string SelectedSaleDiscount => _selectedSaleDetails is null ? "-" : MoneyFormatter.FormatFromCents(_selectedSaleDetails.DiscountCents);
     public string SelectedSaleReceiptTaxId => string.IsNullOrWhiteSpace(_selectedSaleDetails?.ReceiptTaxId) ? "-" : _selectedSaleDetails!.ReceiptTaxId!;
+    public int FilteredTotalCents => Sales.Sum(x => x.TotalCents);
+    public string FilteredTotalFormatted => MoneyFormatter.FormatFromCents(FilteredTotalCents);
 
     public async Task LoadAsync()
     {
@@ -425,6 +427,9 @@ public sealed class SalesHistoryViewModel : INotifyPropertyChanged
         {
             Sales.Add(sale);
         }
+
+        OnPropertyChanged(nameof(FilteredTotalCents));
+        OnPropertyChanged(nameof(FilteredTotalFormatted));
 
         if (SelectedSale is not null && Sales.All(x => x.SaleId != SelectedSale.SaleId))
         {

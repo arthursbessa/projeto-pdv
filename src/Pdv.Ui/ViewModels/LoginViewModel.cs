@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Pdv.Application.Abstractions;
 using Pdv.Application.Domain;
+using Pdv.Application.Services;
 using Pdv.Application.Utilities;
 using Pdv.Infrastructure.Repositories;
 using Pdv.Ui.Services;
@@ -18,6 +19,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     private readonly IStoreSettingsRepository _storeSettingsRepository;
     private readonly IErrorFileLogger _errorLogger;
     private readonly AppRuntimeInfoService _runtimeInfo;
+    private readonly SyncService _syncService;
     private string _username = string.Empty;
     private string _password = string.Empty;
     private string _statusMessage = "Informe as credenciais do operador.";
@@ -36,7 +38,8 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         SessionContext session,
         IStoreSettingsRepository storeSettingsRepository,
         IErrorFileLogger errorLogger,
-        AppRuntimeInfoService runtimeInfo)
+        AppRuntimeInfoService runtimeInfo,
+        SyncService syncService)
     {
         _authApiClient = authApiClient;
         _cashRegisters = cashRegisters;
@@ -46,6 +49,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         _storeSettingsRepository = storeSettingsRepository;
         _errorLogger = errorLogger;
         _runtimeInfo = runtimeInfo;
+        _syncService = syncService;
 
         _ = LoadStoreInfoAsync();
     }
@@ -87,11 +91,13 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             {
                 await _cashRegisters.CloseAsync(openSession.Id, user.Id, DateTimeOffset.Now);
                 _session.OpenCashRegister = null;
+                TriggerBackgroundSync();
                 StatusMessage = $"Bem-vindo, {user.FullName}. Caixa antigo fechado automaticamente.";
                 return true;
             }
 
             _session.OpenCashRegister = openSession;
+            TriggerBackgroundSync();
             StatusMessage = $"Bem-vindo, {user.FullName}.";
             return true;
         }
@@ -107,6 +113,7 @@ public sealed class LoginViewModel : INotifyPropertyChanged
 
             _session.CurrentUser = localUser;
             _session.OpenCashRegister = await _cashRegisters.GetOpenSessionAsync();
+            TriggerBackgroundSync();
             StatusMessage = $"Bem-vindo, {localUser.FullName}. Login local (sem internet).";
             return true;
         }
@@ -174,6 +181,21 @@ public sealed class LoginViewModel : INotifyPropertyChanged
         {
             await _users.UpdateAsync(cachedUser);
         }
+    }
+
+    private void TriggerBackgroundSync()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _syncService.RunOnceAsync();
+            }
+            catch (Exception ex)
+            {
+                _errorLogger.LogError("Falha na sincronizacao automatica apos login", ex);
+            }
+        });
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

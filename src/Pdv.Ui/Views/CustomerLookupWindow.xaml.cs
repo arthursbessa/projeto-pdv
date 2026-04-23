@@ -48,6 +48,66 @@ public partial class CustomerLookupWindow : Window
         }
     }
 
+    private void QueryTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (DataContext is CustomerLookupViewModel vm && vm.SelectedCustomer is null && CustomersDataGrid.Items.Count > 0)
+            {
+                CustomersDataGrid.SelectedIndex = 0;
+            }
+
+            ConfirmSelection();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Down && CustomersDataGrid.Items.Count > 0)
+        {
+            if (CustomersDataGrid.SelectedIndex < 0)
+            {
+                CustomersDataGrid.SelectedIndex = 0;
+            }
+
+            CustomersDataGrid.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void CustomersDataGrid_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (CustomersDataGrid.SelectedIndex < 0 && CustomersDataGrid.Items.Count > 0)
+            {
+                CustomersDataGrid.SelectedIndex = 0;
+            }
+
+            ConfirmSelection();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            DialogResult = false;
+            Close();
+            e.Handled = true;
+        }
+    }
+
+    private void CustomersDataGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        if (CustomersDataGrid.SelectedIndex < 0 && CustomersDataGrid.Items.Count > 0)
+        {
+            CustomersDataGrid.SelectedIndex = 0;
+        }
+
+        ConfirmSelection();
+        e.Handled = true;
+    }
+
     private async void CreateCustomer_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not CustomerLookupViewModel vm)

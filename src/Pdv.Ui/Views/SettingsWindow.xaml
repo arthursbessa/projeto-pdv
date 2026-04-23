@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:Pdv.Ui.Converters"
         Title="Configuracoes"
-        Height="700"
-        Width="780"
+        Height="760"
+        Width="820"
         WindowStartupLocation="CenterOwner"
         Background="#F8FAFC">
     <Window.Resources>
@@ -36,6 +36,10 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <TextBlock Text="Adicionar item" Margin="0,0,0,12" VerticalAlignment="Center"/>
                             <ComboBox Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutAddItem}"/>
@@ -43,10 +47,18 @@
                             <ComboBox Grid.Row="1" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutFinalizeSale}"/>
                             <TextBlock Grid.Row="2" Text="Buscar produto" Margin="0,0,0,12" VerticalAlignment="Center"/>
                             <ComboBox Grid.Row="2" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutSearchProduct}"/>
-                            <TextBlock Grid.Row="3" Text="Cancelar item" Margin="0,0,0,12" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="3" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutRemoveItem}"/>
-                            <TextBlock Grid.Row="4" Text="Cancelar comprovante" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="4" Grid.Column="1" Margin="12,0,0,0" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutCancelSale}"/>
+                            <TextBlock Grid.Row="3" Text="Alterar quantidade" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="3" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutChangeQuantity}"/>
+                            <TextBlock Grid.Row="4" Text="Alterar preco" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="4" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutChangePrice}"/>
+                            <TextBlock Grid.Row="5" Text="Selecionar cliente" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="5" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutSelectCustomer}"/>
+                            <TextBlock Grid.Row="6" Text="Reimprimir ultima venda" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="6" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutReprintLastSale}"/>
+                            <TextBlock Grid.Row="7" Text="Remover item" Margin="0,0,0,12" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="7" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutRemoveItem}"/>
+                            <TextBlock Grid.Row="8" Text="Cancelar / voltar" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="8" Grid.Column="1" Margin="12,0,0,0" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutCancelSale}"/>
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -60,23 +72,6 @@
                     </StackPanel>
                 </Border>
 
-                <Border Margin="0,18,0,0" Padding="18" Background="White" BorderBrush="#D7E2F0" BorderThickness="1.2" CornerRadius="16">
-                    <StackPanel>
-                        <TextBlock Text="Exibicao de produtos" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
-                        <TextBlock Margin="0,14,0,6" Text="Define como os nomes dos produtos aparecem no PDV." FontWeight="SemiBold"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="220"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <ComboBox Grid.Column="0"
-                                      HorizontalAlignment="Left"
-                                      ItemsSource="{Binding AvailableProductTextCases}"
-                                      SelectedItem="{Binding ProductTextCaseInput}"
-                                      Width="220"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
             </StackPanel>
         </ScrollViewer>
 

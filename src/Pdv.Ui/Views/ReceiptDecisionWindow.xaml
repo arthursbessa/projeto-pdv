@@ -20,9 +20,18 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#FFF16F"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderThickness" Value="2.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -59,8 +68,8 @@
         </Border>
 
         <StackPanel Grid.Row="2" Margin="0,18,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Nao" Style="{StaticResource SecondaryButtonStyle}" Click="No_Click"/>
-            <Button Content="Sim" Margin="10,0,0,0" Style="{StaticResource PrimaryButtonStyle}" Click="Yes_Click"/>
+            <Button x:Name="NoButton" Content="Nao" Style="{StaticResource SecondaryButtonStyle}" Click="No_Click"/>
+            <Button x:Name="YesButton" Content="Sim" Margin="10,0,0,0" Style="{StaticResource PrimaryButtonStyle}" Click="Yes_Click"/>
         </StackPanel>
     </Grid>
 </Window>

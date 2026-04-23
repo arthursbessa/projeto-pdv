@@ -76,31 +76,6 @@ public sealed class ProductLookupViewModel : INotifyPropertyChanged
         {
             var settings = await _pdvSettingsRepository.GetCurrentAsync();
             _productTextCase = settings.ProductTextCase;
-
-            try
-            {
-                var remoteProducts = await _catalogApiClient.GetCatalogAsync();
-                foreach (var product in remoteProducts)
-                {
-                    var existing = await _productCacheRepository.FindByIdAsync(product.ProductId);
-                    if (existing is null)
-                    {
-                        await _productCacheRepository.AddAsync(product);
-                    }
-                    else
-                    {
-                        await _productCacheRepository.UpdateAsync(product);
-                    }
-                }
-
-                StatusMessage = $"{remoteProducts.Count} produto(s) sincronizado(s) da API.";
-            }
-            catch (Exception ex)
-            {
-                _errorLogger.LogError("Falha ao sincronizar produtos na busca manual", ex);
-                StatusMessage = "Sem conexao com a API. Exibindo catalogo local.";
-            }
-
             await SearchAsync();
         }
         finally
@@ -116,15 +91,17 @@ public sealed class ProductLookupViewModel : INotifyPropertyChanged
 
         foreach (var product in products.Where(p => p.Active))
         {
-                Products.Add(new ProductLookupItemViewModel
-                {
-                    Id = product.ProductId,
-                    Barcode = product.Barcode,
-                    Description = ProductTextFormatter.Format(product.Description, _productTextCase),
-                    PriceCents = product.PriceCents,
-                    PriceFormatted = MoneyFormatter.FormatFromCents(product.PriceCents)
-                });
-            }
+            Products.Add(new ProductLookupItemViewModel
+            {
+                Id = product.ProductId,
+                Barcode = product.Barcode,
+                Description = ProductTextFormatter.Format(product.Description, _productTextCase),
+                PriceCents = product.PriceCents,
+                PriceFormatted = MoneyFormatter.FormatFromCents(product.PriceCents)
+            });
+        }
+
+        SelectedProduct = Products.FirstOrDefault();
 
         StatusMessage = Products.Count == 0
             ? "Nenhum produto encontrado."

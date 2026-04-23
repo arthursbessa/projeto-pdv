@@ -124,16 +124,25 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,12,0,0">
-            <Button Content="{Binding DiscountButtonText}"
-                    Margin="0,0,10,0"
+            <Button Margin="0,0,10,0"
                     Style="{StaticResource TopActionButtonStyle}"
                     Click="Discount_Click"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-            <Button Content="{Binding CustomerButtonText}"
-                    Style="{StaticResource TopActionButtonStyle}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding DiscountButtonText}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding DiscountShortcutLabel, StringFormat=({0})}" FontSize="11" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource TopActionButtonStyle}"
                     Click="SelectCustomer_Click"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding CustomerButtonText}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding CustomerShortcutLabel, StringFormat=({0})}" FontSize="11" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Button>
         </StackPanel>
+        
 
         <Border Grid.Row="2"
                 Margin="0,12,0,0"
@@ -214,7 +223,7 @@
                          Checked="PaymentOption_Checked"
                          Style="{StaticResource PaymentRowStyle}"
                          IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
-                <TextBlock Text="💵" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Text="1" FontSize="16" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </RadioButton>
 
             <Border Margin="0,-2,0,8"
@@ -273,7 +282,7 @@
                          Checked="PaymentOption_Checked"
                          Style="{StaticResource PaymentRowStyle}"
                          IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
-                <TextBlock Text="◉" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
+                <TextBlock Text="2" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
             </RadioButton>
 
             <RadioButton x:Name="CreditCardOption"
@@ -283,7 +292,7 @@
                          Checked="PaymentOption_Checked"
                          Style="{StaticResource PaymentRowStyle}"
                          IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
-                <TextBlock Text="💳" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Text="3" FontSize="16" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </RadioButton>
 
             <RadioButton x:Name="DebitCardOption"
@@ -293,7 +302,7 @@
                          Checked="PaymentOption_Checked"
                          Style="{StaticResource PaymentRowStyle}"
                          IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
-                <TextBlock Text="💳" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Text="4" FontSize="16" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </RadioButton>
         </StackPanel>
 

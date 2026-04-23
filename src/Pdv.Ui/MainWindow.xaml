@@ -49,6 +49,10 @@
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Opacity" Value="0.9"/>
                 </Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="#FFF16F"/>
+                    <Setter Property="BorderThickness" Value="2.6"/>
+                </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.55"/>
                 </Trigger>
@@ -64,18 +68,76 @@
             <Setter Property="Margin" Value="0,0,0,14"/>
         </Style>
 
+        <Style x:Key="MetricCardInnerBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#0A2344"/>
+            <Setter Property="BorderBrush" Value="#2AA8E8"/>
+            <Setter Property="BorderThickness" Value="1.2"/>
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="Padding" Value="20"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="BorderBrush" Value="#FFF16F"/>
+                    <Setter Property="BorderThickness" Value="2.8"/>
+                    <Setter Property="Background" Value="#102B50"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <Style TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}"/>
 
         <Style x:Key="InlineEditorTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="Height" Value="50"/>
+            <Setter Property="Padding" Value="14,0"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="Background" Value="#F8FAFC"/>
-            <Setter Property="BorderBrush" Value="#CBD5E1"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="#F8FBFF"/>
+            <Setter Property="BorderBrush" Value="#8BD8FF"/>
+            <Setter Property="BorderThickness" Value="1.6"/>
             <Setter Property="Foreground" Value="#0F172A"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="16">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="#FFF16F"/>
+                    <Setter Property="BorderThickness" Value="2.8"/>
+                    <Setter Property="Background" Value="#FFFDEA"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="MainBarcodeTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource InlineEditorTextBoxStyle}">
+            <Setter Property="Height" Value="56"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="IsTabStop" Value="False"/>
+        </Style>
+
+        <Style x:Key="ItemsDataGridStyle" TargetType="DataGrid">
+            <Setter Property="BorderBrush" Value="#D7E2F0"/>
+            <Setter Property="BorderThickness" Value="1.2"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="BorderBrush" Value="#FFF16F"/>
+                    <Setter Property="BorderThickness" Value="3"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
@@ -139,88 +201,82 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Style="{StaticResource MetricCardStyle}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="120"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Unitario" Foreground="#D8F3FF" FontSize="16" FontWeight="SemiBold"/>
-                            <TextBox Grid.Column="1"
-                                     x:Name="SelectedPriceTextBox"
+                    <Border Grid.Row="0" Style="{StaticResource MetricCardInnerBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Valor unitario" Foreground="#D8F3FF" FontSize="15" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding ChangePriceShortcutLabel, StringFormat=({0})}" Foreground="#9EDCFF" FontSize="12" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                            <TextBox x:Name="SelectedPriceTextBox"
+                                     Margin="0,18,0,0"
                                      Style="{StaticResource InlineEditorTextBoxStyle}"
-                                     FontSize="20"
-                                     Background="White"
+                                     Background="#F8FBFF"
                                      BorderBrush="#7DD3FC"
                                      Foreground="#0F172A"
                                      IsEnabled="{Binding CanEditSelectedItem}"
                                      LostFocus="SelectedPriceTextBox_LostFocus"
-                                     KeyDown="SelectedPriceTextBox_KeyDown"/>
-                        </Grid>
+                                     KeyDown="SelectedPriceTextBox_KeyDown"
+                                     GotKeyboardFocus="FocusableElement_GotKeyboardFocus"/>
+                        </StackPanel>
                     </Border>
 
-                    <Border Grid.Row="1" Style="{StaticResource MetricCardStyle}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="120"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Qtd" Foreground="#D8F3FF" FontSize="16" FontWeight="SemiBold"/>
-                            <TextBox Grid.Column="1"
-                                     x:Name="SelectedQuantityTextBox"
+                    <Border Grid.Row="1" Style="{StaticResource MetricCardInnerBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Quantidade" Foreground="#D8F3FF" FontSize="15" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding ChangeQuantityShortcutLabel, StringFormat=({0})}" Foreground="#9EDCFF" FontSize="12" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                            <TextBox x:Name="SelectedQuantityTextBox"
+                                     Margin="0,18,0,0"
                                      Style="{StaticResource InlineEditorTextBoxStyle}"
-                                     FontSize="20"
-                                     Background="White"
+                                     Background="#F8FBFF"
                                      BorderBrush="#7DD3FC"
                                      Foreground="#0F172A"
                                      IsEnabled="{Binding CanEditSelectedItem}"
                                      LostFocus="SelectedQuantityTextBox_LostFocus"
-                                     KeyDown="SelectedQuantityTextBox_KeyDown"/>
-                        </Grid>
-                    </Border>
-
-                    <Border Grid.Row="2" Style="{StaticResource MetricCardStyle}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Descontos" Foreground="#D8F3FF" FontSize="16" FontWeight="SemiBold"/>
-                            <TextBlock Grid.Column="1" Text="{Binding DiscountFormatted}" Foreground="White" FontSize="22" FontWeight="Bold"/>
-                        </Grid>
-                    </Border>
-
-                    <Border Grid.Row="3"
-                            Margin="0,14,0,0"
-                            Padding="22"
-                            CornerRadius="24"
-                            Background="#0A2344"
-                            BorderBrush="#3DC6FF"
-                            BorderThickness="1.5">
-                        <StackPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="TOTAL" Foreground="#FFF16F" FontSize="26" FontWeight="Bold"/>
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="Itens" Foreground="#8DDCFF" FontSize="12" HorizontalAlignment="Right"/>
-                                    <TextBlock Text="{Binding ItemCountFormatted}" Foreground="White" FontSize="24" FontWeight="Bold" HorizontalAlignment="Right"/>
-                                </StackPanel>
-                            </Grid>
-                            <TextBlock Text="{Binding TotalFormatted}"
-                                       Margin="0,18,0,0"
-                                       Foreground="White"
-                                       FontSize="34"
-                                       FontWeight="Bold"
-                                       HorizontalAlignment="Right"/>
+                                     KeyDown="SelectedQuantityTextBox_KeyDown"
+                                     GotKeyboardFocus="FocusableElement_GotKeyboardFocus"/>
                         </StackPanel>
                     </Border>
+
+                    <Grid Grid.Row="2" Margin="0,14,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Padding="22"
+                                CornerRadius="24"
+                                Background="#0A2344"
+                                BorderBrush="#3DC6FF"
+                                BorderThickness="1.5">
+                            <StackPanel>
+                                <TextBlock Text="ITENS NA VENDA" Foreground="#8DDCFF" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding ItemCountFormatted}"
+                                           Margin="0,10,0,0"
+                                           Foreground="White"
+                                           FontSize="42"
+                                           FontWeight="Bold"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1"
+                                Margin="0,14,0,0"
+                                Padding="22"
+                                CornerRadius="24"
+                                Background="#0F2E57"
+                                BorderBrush="#5BC0FF"
+                                BorderThickness="1.5">
+                            <StackPanel>
+                                <TextBlock Text="TOTAL DA VENDA" Foreground="#FFF16F" FontSize="18" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding TotalFormatted}"
+                                           Margin="0,12,0,0"
+                                           Foreground="White"
+                                           FontSize="36"
+                                           FontWeight="Bold"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <Border Grid.Column="1"
@@ -259,9 +315,12 @@
 
                                 <DataGrid Grid.Row="1"
                                           x:Name="ItemsDataGrid"
+                                          Style="{StaticResource ItemsDataGridStyle}"
                                           ItemsSource="{Binding Items}"
                                           SelectedItem="{Binding SelectedItem}"
                                           SelectionChanged="ItemsDataGrid_SelectionChanged"
+                                          GotKeyboardFocus="FocusableElement_GotKeyboardFocus"
+                                          IsTabStop="True"
                                           AutoGenerateColumns="False"
                                           HeadersVisibility="None"
                                           GridLinesVisibility="Horizontal"
@@ -279,6 +338,22 @@
                                             <Setter Property="Foreground" Value="#0F172A"/>
                                             <Setter Property="FontSize" Value="14"/>
                                             <Setter Property="Background" Value="Transparent"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#DCEEFF"/>
+                                                    <Setter Property="Foreground" Value="#0F172A"/>
+                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                    <Setter Property="BorderBrush" Value="#1F5FBF"/>
+                                                    <Setter Property="BorderThickness" Value="0,0,0,0"/>
+                                                </Trigger>
+                                                <MultiTrigger>
+                                                    <MultiTrigger.Conditions>
+                                                        <Condition Property="IsSelected" Value="True"/>
+                                                        <Condition Property="IsKeyboardFocusWithin" Value="True"/>
+                                                    </MultiTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#CDE5FF"/>
+                                                </MultiTrigger>
+                                            </Style.Triggers>
                                         </Style>
                                     </DataGrid.Resources>
                                     <DataGrid.Columns>
@@ -310,25 +385,25 @@
                         <TextBlock Text="Painel operacional" Foreground="White" FontSize="22" FontWeight="Bold"/>
 
                         <StackPanel Grid.Row="1" Margin="0,18,0,0">
-                            <Button Click="Finalize_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                            <Button x:Name="FinalizeButton" Click="Finalize_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}" GotKeyboardFocus="FocusableElement_GotKeyboardFocus" IsTabStop="False">
                                 <StackPanel>
                                     <TextBlock Text="Fechar venda" HorizontalAlignment="Center"/>
                                     <TextBlock Text="{Binding FinalizeShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Click="SearchProduct_Click" Background="#0F766E" BorderBrush="#34D399" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                            <Button x:Name="ReprintLastSaleButton" Click="ReprintLastSale_Click" Background="#7C3AED" BorderBrush="#C4B5FD" IsEnabled="{Binding CanReprintLastSale}" GotKeyboardFocus="FocusableElement_GotKeyboardFocus" IsTabStop="False">
                                 <StackPanel>
-                                    <TextBlock Text="Buscar produto" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding SearchProductShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Reimprimir ultima venda" HorizontalAlignment="Center" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding ReprintLastSaleShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Command="{Binding RemoveSelectedCommand}" Background="#475569" BorderBrush="#CBD5E1" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                            <Button x:Name="RemoveItemButton" Command="{Binding RemoveSelectedCommand}" Background="#475569" BorderBrush="#CBD5E1" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}" GotKeyboardFocus="FocusableElement_GotKeyboardFocus" IsTabStop="False">
                                 <StackPanel>
-                                    <TextBlock Text="Cancelar item" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Remover item" HorizontalAlignment="Center"/>
                                     <TextBlock Text="{Binding RemoveItemShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Click="CancelSale_Click" Background="#B91C1C" BorderBrush="#FCA5A5" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                            <Button x:Name="CancelSaleButton" Click="CancelSale_Click" Background="#B91C1C" BorderBrush="#FCA5A5" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}" GotKeyboardFocus="FocusableElement_GotKeyboardFocus" IsTabStop="False">
                                 <StackPanel>
                                     <TextBlock Text="Cancelar comprovante" HorizontalAlignment="Center"/>
                                     <TextBlock Text="{Binding CancelSaleShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
@@ -366,44 +441,49 @@
                                    FontSize="18"
                                    FontWeight="Bold"/>
                         <TextBox x:Name="BarcodeTextBox"
-                                 Height="48"
                                  Margin="0,10,0,0"
-                                 VerticalContentAlignment="Center"
-                                 FontSize="22"
+                                 Style="{StaticResource MainBarcodeTextBoxStyle}"
                                  Text="{Binding BarcodeInput, UpdateSourceTrigger=PropertyChanged}"
                                  KeyDown="BarcodeTextBox_KeyDown"
-                                 Padding="14,0"
+                                 GotKeyboardFocus="FocusableElement_GotKeyboardFocus"
                                  BorderBrush="#7DD3FC"
-                                 BorderThickness="1.5"
                                  Background="#F8FAFC"
-                                 Foreground="#0F172A"/>
+                                 Foreground="#0F172A"
+                                 IsTabStop="False"/>
                     </StackPanel>
 
-                    <Button Grid.Column="1"
+                    <Button x:Name="AddItemButton"
+                            Grid.Column="1"
                             Margin="0,28,12,0"
                             Padding="14,12"
                             Click="AddItem_Click"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
+                            GotKeyboardFocus="FocusableElement_GotKeyboardFocus"
+                            IsTabStop="False">
                         <StackPanel>
                             <TextBlock Text="Adicionar item" HorizontalAlignment="Center"/>
                             <TextBlock Text="{Binding AddItemShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="2"
+                    <Button x:Name="SearchProductButton"
+                            Grid.Column="2"
                             Margin="0,28,0,0"
                             Padding="14,12"
                             Click="SearchProduct_Click"
                             Background="#0F766E"
                             BorderBrush="#34D399"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
+                            GotKeyboardFocus="FocusableElement_GotKeyboardFocus"
+                            IsTabStop="False">
                         <StackPanel>
                             <TextBlock Text="Buscar produto" HorizontalAlignment="Center"/>
                             <TextBlock Text="{Binding SearchProductShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
-                        </StackPanel>
+                            </StackPanel>
                     </Button>
                 </Grid>
             </Border>
+
         </Grid>
     </Grid>
 </Window>

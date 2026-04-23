@@ -47,6 +47,66 @@ public partial class ProductLookupWindow : Window
         }
     }
 
+    private void QueryTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (DataContext is ProductLookupViewModel vm && vm.SelectedProduct is null && ProductsDataGrid.Items.Count > 0)
+            {
+                ProductsDataGrid.SelectedIndex = 0;
+            }
+
+            ConfirmSelection();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Down && ProductsDataGrid.Items.Count > 0)
+        {
+            if (ProductsDataGrid.SelectedIndex < 0)
+            {
+                ProductsDataGrid.SelectedIndex = 0;
+            }
+
+            ProductsDataGrid.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void ProductsDataGrid_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (ProductsDataGrid.SelectedIndex < 0 && ProductsDataGrid.Items.Count > 0)
+            {
+                ProductsDataGrid.SelectedIndex = 0;
+            }
+
+            ConfirmSelection();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            DialogResult = false;
+            Close();
+            e.Handled = true;
+        }
+    }
+
+    private void ProductsDataGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        if (ProductsDataGrid.SelectedIndex < 0 && ProductsDataGrid.Items.Count > 0)
+        {
+            ProductsDataGrid.SelectedIndex = 0;
+        }
+
+        ConfirmSelection();
+        e.Handled = true;
+    }
+
     private void ConfirmSelection()
     {
         if (DataContext is not ProductLookupViewModel vm || vm.SelectedProduct is null)

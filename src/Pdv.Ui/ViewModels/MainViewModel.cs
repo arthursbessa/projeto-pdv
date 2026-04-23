@@ -39,6 +39,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _lastScannedQuantity;
     private bool _isOnlineIntegration = true;
     private PdvSettings _settings = new();
+    private Guid? _lastCompletedSaleId;
+    private bool _canReprintLastSale;
+    private string _currentFocusArea = "Leitura do codigo de barras";
 
     public MainViewModel(
         SaleBuilderService saleBuilderService,
@@ -162,12 +165,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ? ItemCount.ToString("N0")
         : SelectedItem.Quantity.ToString("N0");
 
-    public string DiscountFormatted => MoneyFormatter.FormatFromCents(0);
     public string ItemCountFormatted => ItemCount.ToString("N0");
+    public bool CanReprintLastSale
+    {
+        get => _canReprintLastSale;
+        private set => SetField(ref _canReprintLastSale, value);
+    }
+    public string CurrentFocusArea
+    {
+        get => _currentFocusArea;
+        set => SetField(ref _currentFocusArea, value);
+    }
 
     public string AddItemShortcutLabel => _settings.ShortcutAddItem;
     public string FinalizeShortcutLabel => _settings.ShortcutFinalizeSale;
     public string SearchProductShortcutLabel => _settings.ShortcutSearchProduct;
+    public string ChangeQuantityShortcutLabel => _settings.ShortcutChangeQuantity;
+    public string ChangePriceShortcutLabel => _settings.ShortcutChangePrice;
+    public string SelectCustomerShortcutLabel => _settings.ShortcutSelectCustomer;
+    public string ReprintLastSaleShortcutLabel => _settings.ShortcutReprintLastSale;
     public string RemoveItemShortcutLabel => _settings.ShortcutRemoveItem;
     public string CancelSaleShortcutLabel => _settings.ShortcutCancelSale;
 
@@ -177,10 +193,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AddItemShortcutLabel));
         OnPropertyChanged(nameof(FinalizeShortcutLabel));
         OnPropertyChanged(nameof(SearchProductShortcutLabel));
+        OnPropertyChanged(nameof(ChangeQuantityShortcutLabel));
+        OnPropertyChanged(nameof(ChangePriceShortcutLabel));
+        OnPropertyChanged(nameof(SelectCustomerShortcutLabel));
+        OnPropertyChanged(nameof(ReprintLastSaleShortcutLabel));
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
         RefreshDisplayedProductTexts();
         await LoadStoreSettingsAsync();
+        await RefreshLastSaleAvailabilityAsync();
     }
 
     public async Task LoadStoreSettingsAsync()
@@ -195,6 +216,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AddItemShortcutLabel));
         OnPropertyChanged(nameof(FinalizeShortcutLabel));
         OnPropertyChanged(nameof(SearchProductShortcutLabel));
+        OnPropertyChanged(nameof(ChangeQuantityShortcutLabel));
+        OnPropertyChanged(nameof(ChangePriceShortcutLabel));
+        OnPropertyChanged(nameof(SelectCustomerShortcutLabel));
+        OnPropertyChanged(nameof(ReprintLastSaleShortcutLabel));
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
         RefreshDisplayedProductTexts();
@@ -275,9 +300,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         ReplaceItems(result.Items);
         RefreshDisplayedProductTexts();
-        var scannedItem = result.Items.FirstOrDefault(x => x.Barcode == barcode);
+        var scannedItem = Items.FirstOrDefault(x => x.Barcode == barcode);
         if (scannedItem is not null)
         {
+            SelectedItem = scannedItem;
             UpdateLastScanned(scannedItem);
         }
 
@@ -306,6 +332,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             existing.IncrementQuantity();
             ApplyProductTextCase(existing);
+            SelectedItem = existing;
             UpdateLastScanned(existing);
         }
         else
@@ -320,6 +347,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             };
 
             Items.Add(saleItem);
+            SelectedItem = saleItem;
             UpdateLastScanned(saleItem);
         }
 
@@ -552,6 +580,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
             TriggerBackgroundSync();
+            _lastCompletedSaleId = sale.SaleId;
+            CanReprintLastSale = true;
 
             var pending = await _outboxRepository.GetPendingCountAsync();
             CancelSale();
@@ -575,6 +605,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var storeSettings = await _storeSettingsRepository.GetCurrentAsync();
         var settings = await _pdvSettingsRepository.GetCurrentAsync();
         return (storeSettings, settings);
+    }
+
+    public async Task<Sale?> GetLastSaleForPrintAsync()
+    {
+        if (_lastCompletedSaleId.HasValue)
+        {
+            var currentSessionSale = await _salesRepository.FindByIdAsync(_lastCompletedSaleId.Value);
+            if (currentSessionSale is not null)
+            {
+                return currentSessionSale;
+            }
+        }
+
+        return await _salesRepository.GetLatestCompletedSaleAsync(_session.OpenCashRegister?.Id);
+    }
+
+    public async Task RefreshLastSaleAvailabilityAsync()
+    {
+        if (_session.OpenCashRegister is null)
+        {
+            CanReprintLastSale = false;
+            return;
+        }
+
+        var sale = await _salesRepository.GetLatestCompletedSaleAsync(_session.OpenCashRegister.Id);
+        _lastCompletedSaleId = sale?.SaleId;
+        CanReprintLastSale = sale is not null;
     }
 
     private void TriggerBackgroundSync()

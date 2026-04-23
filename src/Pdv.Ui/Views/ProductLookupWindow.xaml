@@ -34,7 +34,8 @@
                      VerticalContentAlignment="Center"
                      FontSize="16"
                      Padding="12,0"
-                     Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"/>
+                     Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
+                     KeyDown="QueryTextBox_KeyDown"/>
             <Button Grid.Column="1"
                     Content="Novo produto"
                     Margin="12,0,0,0"
@@ -58,6 +59,8 @@
                       AutoGenerateColumns="False"
                       CanUserAddRows="False"
                       IsReadOnly="True"
+                      PreviewKeyDown="ProductsDataGrid_PreviewKeyDown"
+                      KeyDown="ProductsDataGrid_KeyDown"
                       MouseDoubleClick="ProductsDataGrid_MouseDoubleClick">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Codigo" Binding="{Binding Barcode}" Width="170"/>

@@ -8,6 +8,7 @@ public partial class ReceiptDecisionWindow : Window
     public ReceiptDecisionWindow()
     {
         InitializeComponent();
+        Loaded += (_, _) => NoButton.Focus();
     }
 
     public bool PrintReceipt { get; private set; }
@@ -30,7 +31,15 @@ public partial class ReceiptDecisionWindow : Window
     {
         if (e.Key == Key.Enter)
         {
-            Yes_Click(sender, e);
+            if (ReferenceEquals(Keyboard.FocusedElement, NoButton))
+            {
+                No_Click(sender, e);
+            }
+            else
+            {
+                Yes_Click(sender, e);
+            }
+
             e.Handled = true;
         }
         else if (e.Key == Key.Escape)

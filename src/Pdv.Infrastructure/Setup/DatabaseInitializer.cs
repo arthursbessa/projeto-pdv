@@ -87,8 +87,15 @@ CREATE TABLE IF NOT EXISTS pdv_settings (
     shortcut_add_item TEXT NOT NULL DEFAULT 'Enter',
     shortcut_finalize_sale TEXT NOT NULL DEFAULT 'F2',
     shortcut_search_product TEXT NOT NULL DEFAULT 'F3',
-    shortcut_remove_item TEXT NOT NULL DEFAULT 'F4',
-    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Space',
+    shortcut_change_quantity TEXT NOT NULL DEFAULT 'F4',
+    shortcut_change_price TEXT NOT NULL DEFAULT 'F5',
+    shortcut_open_payment TEXT NOT NULL DEFAULT 'F6',
+    shortcut_select_customer TEXT NOT NULL DEFAULT 'F7',
+    shortcut_reprint_last_sale TEXT NOT NULL DEFAULT 'F8',
+    shortcut_print_receipt TEXT NOT NULL DEFAULT 'F9',
+    shortcut_remove_item TEXT NOT NULL DEFAULT 'Delete',
+    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Escape',
+    default_discount_percent REAL NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );
 
@@ -261,8 +268,15 @@ CREATE TABLE IF NOT EXISTS pdv_settings (
     shortcut_add_item TEXT NOT NULL DEFAULT 'Enter',
     shortcut_finalize_sale TEXT NOT NULL DEFAULT 'F2',
     shortcut_search_product TEXT NOT NULL DEFAULT 'F3',
-    shortcut_remove_item TEXT NOT NULL DEFAULT 'F4',
-    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Space',
+    shortcut_change_quantity TEXT NOT NULL DEFAULT 'F4',
+    shortcut_change_price TEXT NOT NULL DEFAULT 'F5',
+    shortcut_open_payment TEXT NOT NULL DEFAULT 'F6',
+    shortcut_select_customer TEXT NOT NULL DEFAULT 'F7',
+    shortcut_reprint_last_sale TEXT NOT NULL DEFAULT 'F8',
+    shortcut_print_receipt TEXT NOT NULL DEFAULT 'F9',
+    shortcut_remove_item TEXT NOT NULL DEFAULT 'Delete',
+    shortcut_cancel_sale TEXT NOT NULL DEFAULT 'Escape',
+    default_discount_percent REAL NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );";
         await createPdvSettings.ExecuteNonQueryAsync(cancellationToken);
@@ -289,6 +303,13 @@ CREATE TABLE IF NOT EXISTS pdv_settings (
         await EnsureColumnAsync(connection, "products", "cfop", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "store_settings", "terminal_name", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "pdv_settings", "product_text_case", "TEXT NOT NULL DEFAULT 'Original'", cancellationToken);
+        await EnsureColumnAsync(connection, "pdv_settings", "shortcut_change_quantity", "TEXT NOT NULL DEFAULT 'F4'", cancellationToken);
+        await EnsureColumnAsync(connection, "pdv_settings", "shortcut_change_price", "TEXT NOT NULL DEFAULT 'F5'", cancellationToken);
+        await EnsureColumnAsync(connection, "pdv_settings", "shortcut_open_payment", "TEXT NOT NULL DEFAULT 'F6'", cancellationToken);
+        await EnsureColumnAsync(connection, "pdv_settings", "shortcut_select_customer", "TEXT NOT NULL DEFAULT 'F7'", cancellationToken);
+        await EnsureColumnAsync(connection, "pdv_settings", "shortcut_reprint_last_sale", "TEXT NOT NULL DEFAULT 'F8'", cancellationToken);
+        await EnsureColumnAsync(connection, "pdv_settings", "shortcut_print_receipt", "TEXT NOT NULL DEFAULT 'F9'", cancellationToken);
+        await EnsureColumnAsync(connection, "pdv_settings", "default_discount_percent", "REAL NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(connection, "customers", "address", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "customers", "notes", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(connection, "sale_items", "discount_cents", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
@@ -411,10 +432,17 @@ INSERT INTO pdv_settings (
     shortcut_add_item,
     shortcut_finalize_sale,
     shortcut_search_product,
+    shortcut_change_quantity,
+    shortcut_change_price,
+    shortcut_open_payment,
+    shortcut_select_customer,
+    shortcut_reprint_last_sale,
+    shortcut_print_receipt,
     shortcut_remove_item,
     shortcut_cancel_sale,
+    default_discount_percent,
     updated_at)
-VALUES (1, 'Original', 1, NULL, 'Enter', 'F2', 'F3', 'F4', 'Space', $updatedAt)
+VALUES (1, 'Original', 1, NULL, 'Enter', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'Delete', 'Escape', 0, $updatedAt)
 ON CONFLICT(id) DO NOTHING;";
         settingsCommand.Parameters.AddWithValue("$updatedAt", now);
         await settingsCommand.ExecuteNonQueryAsync(cancellationToken);
