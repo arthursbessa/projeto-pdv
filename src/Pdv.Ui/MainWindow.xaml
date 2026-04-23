@@ -322,9 +322,21 @@
                                     <TextBlock Text="{Binding SearchProductShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
+                            <Button Click="ReprintLastSale_Click" Background="#7C3AED" BorderBrush="#C4B5FD" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Reimprimir ultima venda" HorizontalAlignment="Center" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding ReprintLastSaleShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Click="PrintReceipt_Click" Background="#0F766E" BorderBrush="#6EE7B7" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Imprimir comprovante" HorizontalAlignment="Center" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding PrintReceiptShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
                             <Button Command="{Binding RemoveSelectedCommand}" Background="#475569" BorderBrush="#CBD5E1" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}">
                                 <StackPanel>
-                                    <TextBlock Text="Cancelar item" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Remover item" HorizontalAlignment="Center"/>
                                     <TextBlock Text="{Binding RemoveItemShortcutLabel, StringFormat=({0})}" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Button>

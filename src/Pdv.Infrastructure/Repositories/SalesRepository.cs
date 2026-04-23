@@ -288,6 +288,28 @@ ORDER BY si.rowid;";
         };
     }
 
+    public async Task<Sale?> GetLatestCompletedSaleAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = _connectionFactory.Create();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+SELECT id
+FROM sales
+WHERE COALESCE(status, 'COMPLETED') IN ('COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+ORDER BY created_at DESC
+LIMIT 1;";
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        if (result is null || result is DBNull)
+        {
+            return null;
+        }
+
+        return await FindByIdAsync(Guid.Parse(Convert.ToString(result, CultureInfo.InvariantCulture)!), cancellationToken);
+    }
+
     public async Task SaveRemoteSaleReferenceAsync(Guid localSaleId, string remoteSaleId, int? saleNumber, CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.Create();

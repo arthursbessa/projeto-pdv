@@ -53,10 +53,61 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (vm.MatchesShortcut(e.Key, vm.CancelSaleShortcutLabel) && e.Key == Key.Space)
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.F)
         {
-            await CancelSaleWithConfirmationAsync();
+            FocusBarcode();
             e.Handled = true;
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.SearchProductShortcutLabel))
+        {
+            FocusBarcode();
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.ChangeQuantityShortcutLabel))
+        {
+            FocusSelectedQuantity();
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.ChangePriceShortcutLabel))
+        {
+            FocusSelectedPrice();
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.OpenPaymentShortcutLabel))
+        {
+            await OpenFinalizeDialogAsync();
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.ReprintLastSaleShortcutLabel))
+        {
+            await PrintLastSaleAsync(preferCurrentSession: false);
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.PrintReceiptShortcutLabel))
+        {
+            await PrintLastSaleAsync(preferCurrentSession: true);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Up || e.Key == Key.Down)
+        {
+            if (SelectRelativeItem(e.Key == Key.Down ? 1 : -1))
+            {
+                e.Handled = true;
+            }
         }
     }
 
@@ -144,13 +195,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.F)
-        {
-            FocusBarcode();
-            e.Handled = true;
-            return;
-        }
-
         if (vm.MatchesShortcut(e.Key, vm.AddItemShortcutLabel))
         {
             await AddItemFromBarcodeAsync();
@@ -159,11 +203,6 @@ public partial class MainWindow : Window
         else if (vm.MatchesShortcut(e.Key, vm.FinalizeShortcutLabel))
         {
             await OpenFinalizeDialogAsync();
-            e.Handled = true;
-        }
-        else if (vm.MatchesShortcut(e.Key, vm.SearchProductShortcutLabel))
-        {
-            await OpenProductLookupAsync();
             e.Handled = true;
         }
         else if (vm.MatchesShortcut(e.Key, vm.RemoveItemShortcutLabel))
@@ -302,6 +341,91 @@ public partial class MainWindow : Window
     {
         BarcodeTextBox.Focus();
         BarcodeTextBox.SelectAll();
+    }
+
+    private void FocusSelectedQuantity()
+    {
+        if (DataContext is not MainViewModel vm || vm.SelectedItem is null)
+        {
+            return;
+        }
+
+        SelectedQuantityTextBox.Focus();
+        SelectedQuantityTextBox.SelectAll();
+    }
+
+    private void FocusSelectedPrice()
+    {
+        if (DataContext is not MainViewModel vm || vm.SelectedItem is null)
+        {
+            return;
+        }
+
+        SelectedPriceTextBox.Focus();
+        SelectedPriceTextBox.SelectAll();
+    }
+
+    private bool SelectRelativeItem(int direction)
+    {
+        if (DataContext is not MainViewModel vm || vm.Items.Count == 0)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(Keyboard.FocusedElement, BarcodeTextBox)
+            || ReferenceEquals(Keyboard.FocusedElement, SelectedPriceTextBox)
+            || ReferenceEquals(Keyboard.FocusedElement, SelectedQuantityTextBox))
+        {
+            return false;
+        }
+
+        var currentIndex = vm.SelectedItem is null ? -1 : vm.Items.IndexOf(vm.SelectedItem);
+        var nextIndex = currentIndex < 0
+            ? (direction > 0 ? 0 : vm.Items.Count - 1)
+            : Math.Clamp(currentIndex + direction, 0, vm.Items.Count - 1);
+
+        if (nextIndex < 0 || nextIndex >= vm.Items.Count)
+        {
+            return false;
+        }
+
+        ItemsDataGrid.SelectedItem = vm.Items[nextIndex];
+        ItemsDataGrid.ScrollIntoView(vm.Items[nextIndex]);
+        SyncSelectionEditors();
+        return true;
+    }
+
+    private async void ReprintLastSale_Click(object sender, RoutedEventArgs e)
+    {
+        await PrintLastSaleAsync(preferCurrentSession: false);
+    }
+
+    private async void PrintReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        await PrintLastSaleAsync(preferCurrentSession: true);
+    }
+
+    private async Task PrintLastSaleAsync(bool preferCurrentSession)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var sale = await vm.GetLastSaleForPrintAsync(preferCurrentSession);
+        if (sale is null)
+        {
+            vm.StatusMessage = "Nenhuma venda concluida foi encontrada para impressao.";
+            FocusBarcode();
+            return;
+        }
+
+        var printContext = await vm.GetPrintContextAsync();
+        ReceiptPrinter.Print(this, sale, sale.ReceiptTaxId, printContext.StoreSettings, printContext.Settings);
+        vm.StatusMessage = preferCurrentSession
+            ? "Comprovante da ultima venda do caixa enviado para impressao."
+            : "Ultima venda concluida enviada para reimpressao.";
+        FocusBarcode();
     }
 
     private Task CancelSaleWithConfirmationAsync()

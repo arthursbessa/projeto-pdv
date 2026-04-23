@@ -203,6 +203,9 @@ public sealed class SyncServiceTests
         public Task<Sale?> FindByIdAsync(Guid saleId, CancellationToken cancellationToken = default)
             => Task.FromResult<Sale?>(null);
 
+        public Task<Sale?> GetLatestCompletedSaleAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<Sale?>(null);
+
         public Task SaveRemoteSaleReferenceAsync(Guid localSaleId, string remoteSaleId, int? saleNumber, CancellationToken cancellationToken = default)
         {
             SavedReferences.Add((localSaleId, remoteSaleId, saleNumber));

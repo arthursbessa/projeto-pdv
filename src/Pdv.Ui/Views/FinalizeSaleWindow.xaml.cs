@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Pdv.Application.Domain;
@@ -31,7 +32,7 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
             if (Owner?.DataContext is MainViewModel vm)
             {
                 _totalCents = vm.TotalCents;
-                DiscountPercentInput = string.Empty;
+                DiscountPercentInput = vm.DefaultDiscountPercent.ToString("0.##");
                 OnPropertyChanged(nameof(SaleValueFormatted));
                 OnPropertyChanged(nameof(DiscountAppliedFormatted));
                 OnPropertyChanged(nameof(TotalWithDiscountFormatted));
@@ -205,6 +206,11 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
 
     private async void PrimaryAction_Click(object sender, RoutedEventArgs e)
     {
+        await FinalizeAsync(forcePrintReceipt: false);
+    }
+
+    private async Task FinalizeAsync(bool forcePrintReceipt)
+    {
         if (Owner?.DataContext is not MainViewModel vm)
         {
             return;
@@ -236,18 +242,23 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
             discountPercent = 0m;
         }
 
-        var receiptDecision = new ReceiptDecisionWindow
-        {
-            Owner = this
-        };
-
-        if (receiptDecision.ShowDialog() != true)
-        {
-            return;
-        }
-
         string? receiptTaxId = null;
-        var receiptRequested = receiptDecision.PrintReceipt;
+        var receiptRequested = forcePrintReceipt;
+
+        if (!forcePrintReceipt)
+        {
+            var receiptDecision = new ReceiptDecisionWindow
+            {
+                Owner = this
+            };
+
+            if (receiptDecision.ShowDialog() != true)
+            {
+                return;
+            }
+
+            receiptRequested = receiptDecision.PrintReceipt;
+        }
 
         if (receiptRequested)
         {
@@ -360,14 +371,41 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter)
+        if (Owner?.DataContext is not MainViewModel vm)
         {
-            PrimaryAction_Click(sender, e);
-            e.Handled = true;
+            return;
         }
-        else if (e.Key == Key.Escape)
+
+        if (vm.MatchesShortcut(e.Key, vm.CancelSaleShortcutLabel))
         {
             Cancel_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (vm.MatchesShortcut(e.Key, vm.OpenPaymentShortcutLabel))
+        {
+            FocusSelectedPayment();
+            e.Handled = true;
+        }
+        else if (vm.MatchesShortcut(e.Key, vm.SelectCustomerShortcutLabel))
+        {
+            SelectCustomer_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (vm.MatchesShortcut(e.Key, vm.PrintReceiptShortcutLabel))
+        {
+            _ = FinalizeAsync(forcePrintReceipt: true);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Up || e.Key == Key.Down)
+        {
+            if (MovePaymentSelection(e.Key == Key.Down ? 1 : -1))
+            {
+                e.Handled = true;
+            }
+        }
+        else if (e.Key == Key.Enter)
+        {
+            _ = FinalizeAsync(forcePrintReceipt: false);
             e.Handled = true;
         }
     }
@@ -437,6 +475,43 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalWithDiscountFormatted));
         OnPropertyChanged(nameof(ChangeFormatted));
         OnPropertyChanged(nameof(DiscountButtonText));
+    }
+
+    private void FocusSelectedPayment()
+    {
+        var selected = GetSelectedPaymentOption() ?? CashOption;
+        selected.IsChecked = true;
+        selected.Focus();
+    }
+
+    private RadioButton? GetSelectedPaymentOption()
+    {
+        return GetPaymentOptions().FirstOrDefault(option => option.IsChecked == true);
+    }
+
+    private RadioButton[] GetPaymentOptions()
+    {
+        return [CashOption, PixOption, CreditCardOption, DebitCardOption];
+    }
+
+    private bool MovePaymentSelection(int direction)
+    {
+        if (ReferenceEquals(Keyboard.FocusedElement, ReceivedAmountTextBox))
+        {
+            return false;
+        }
+
+        var options = GetPaymentOptions();
+        var currentIndex = Array.IndexOf(options, GetSelectedPaymentOption() ?? CashOption);
+        var nextIndex = Math.Clamp(currentIndex + direction, 0, options.Length - 1);
+        if (nextIndex == currentIndex && options[currentIndex].IsChecked == true)
+        {
+            return false;
+        }
+
+        options[nextIndex].IsChecked = true;
+        options[nextIndex].Focus();
+        return true;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

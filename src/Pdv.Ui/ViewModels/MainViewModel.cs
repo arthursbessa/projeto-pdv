@@ -39,6 +39,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _lastScannedQuantity;
     private bool _isOnlineIntegration = true;
     private PdvSettings _settings = new();
+    private Guid? _lastCompletedSaleId;
 
     public MainViewModel(
         SaleBuilderService saleBuilderService,
@@ -168,8 +169,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string AddItemShortcutLabel => _settings.ShortcutAddItem;
     public string FinalizeShortcutLabel => _settings.ShortcutFinalizeSale;
     public string SearchProductShortcutLabel => _settings.ShortcutSearchProduct;
+    public string ChangeQuantityShortcutLabel => _settings.ShortcutChangeQuantity;
+    public string ChangePriceShortcutLabel => _settings.ShortcutChangePrice;
+    public string OpenPaymentShortcutLabel => _settings.ShortcutOpenPayment;
+    public string SelectCustomerShortcutLabel => _settings.ShortcutSelectCustomer;
+    public string ReprintLastSaleShortcutLabel => _settings.ShortcutReprintLastSale;
+    public string PrintReceiptShortcutLabel => _settings.ShortcutPrintReceipt;
     public string RemoveItemShortcutLabel => _settings.ShortcutRemoveItem;
     public string CancelSaleShortcutLabel => _settings.ShortcutCancelSale;
+    public decimal DefaultDiscountPercent => _settings.DefaultDiscountPercent;
 
     public async Task LoadAsync()
     {
@@ -177,8 +185,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AddItemShortcutLabel));
         OnPropertyChanged(nameof(FinalizeShortcutLabel));
         OnPropertyChanged(nameof(SearchProductShortcutLabel));
+        OnPropertyChanged(nameof(ChangeQuantityShortcutLabel));
+        OnPropertyChanged(nameof(ChangePriceShortcutLabel));
+        OnPropertyChanged(nameof(OpenPaymentShortcutLabel));
+        OnPropertyChanged(nameof(SelectCustomerShortcutLabel));
+        OnPropertyChanged(nameof(ReprintLastSaleShortcutLabel));
+        OnPropertyChanged(nameof(PrintReceiptShortcutLabel));
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
+        OnPropertyChanged(nameof(DefaultDiscountPercent));
         RefreshDisplayedProductTexts();
         await LoadStoreSettingsAsync();
     }
@@ -195,8 +210,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AddItemShortcutLabel));
         OnPropertyChanged(nameof(FinalizeShortcutLabel));
         OnPropertyChanged(nameof(SearchProductShortcutLabel));
+        OnPropertyChanged(nameof(ChangeQuantityShortcutLabel));
+        OnPropertyChanged(nameof(ChangePriceShortcutLabel));
+        OnPropertyChanged(nameof(OpenPaymentShortcutLabel));
+        OnPropertyChanged(nameof(SelectCustomerShortcutLabel));
+        OnPropertyChanged(nameof(ReprintLastSaleShortcutLabel));
+        OnPropertyChanged(nameof(PrintReceiptShortcutLabel));
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
+        OnPropertyChanged(nameof(DefaultDiscountPercent));
         RefreshDisplayedProductTexts();
     }
 
@@ -552,6 +574,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
             TriggerBackgroundSync();
+            _lastCompletedSaleId = sale.SaleId;
 
             var pending = await _outboxRepository.GetPendingCountAsync();
             CancelSale();
@@ -575,6 +598,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var storeSettings = await _storeSettingsRepository.GetCurrentAsync();
         var settings = await _pdvSettingsRepository.GetCurrentAsync();
         return (storeSettings, settings);
+    }
+
+    public async Task<Sale?> GetLastSaleForPrintAsync(bool preferCurrentSession = false)
+    {
+        if (preferCurrentSession && _lastCompletedSaleId.HasValue)
+        {
+            var currentSessionSale = await _salesRepository.FindByIdAsync(_lastCompletedSaleId.Value);
+            if (currentSessionSale is not null)
+            {
+                return currentSessionSale;
+            }
+        }
+
+        return await _salesRepository.GetLatestCompletedSaleAsync();
     }
 
     private void TriggerBackgroundSync()
