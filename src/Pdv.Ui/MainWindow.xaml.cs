@@ -61,6 +61,7 @@ public partial class MainWindow : Window
             return;
         }
 
+<<<<<<< HEAD
         if (TryHandleBarcodeTyping(e))
         {
             return;
@@ -69,6 +70,11 @@ public partial class MainWindow : Window
         if (vm.MatchesShortcut(e.Key, vm.SearchProductShortcutLabel))
         {
             await OpenProductLookupAsync(BarcodeTextBox.Text);
+=======
+        if (vm.MatchesShortcut(e.Key, vm.SearchProductShortcutLabel))
+        {
+            FocusBarcode();
+>>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
             e.Handled = true;
             return;
         }
@@ -87,9 +93,29 @@ public partial class MainWindow : Window
             return;
         }
 
+<<<<<<< HEAD
         if (vm.MatchesShortcut(e.Key, vm.ReprintLastSaleShortcutLabel))
         {
             await PrintLastSaleAsync();
+=======
+        if (vm.MatchesShortcut(e.Key, vm.OpenPaymentShortcutLabel))
+        {
+            await OpenFinalizeDialogAsync();
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.ReprintLastSaleShortcutLabel))
+        {
+            await PrintLastSaleAsync(preferCurrentSession: false);
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.MatchesShortcut(e.Key, vm.PrintReceiptShortcutLabel))
+        {
+            await PrintLastSaleAsync(preferCurrentSession: true);
+>>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
             e.Handled = true;
             return;
         }
@@ -472,6 +498,91 @@ public partial class MainWindow : Window
         ReceiptPrinter.Print(this, sale, sale.ReceiptTaxId, printContext.StoreSettings, printContext.Settings);
         vm.StatusMessage = "Ultima venda do caixa atual enviada para reimpressao.";
         FocusItemsGrid();
+    }
+
+    private void FocusSelectedQuantity()
+    {
+        if (DataContext is not MainViewModel vm || vm.SelectedItem is null)
+        {
+            return;
+        }
+
+        SelectedQuantityTextBox.Focus();
+        SelectedQuantityTextBox.SelectAll();
+    }
+
+    private void FocusSelectedPrice()
+    {
+        if (DataContext is not MainViewModel vm || vm.SelectedItem is null)
+        {
+            return;
+        }
+
+        SelectedPriceTextBox.Focus();
+        SelectedPriceTextBox.SelectAll();
+    }
+
+    private bool SelectRelativeItem(int direction)
+    {
+        if (DataContext is not MainViewModel vm || vm.Items.Count == 0)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(Keyboard.FocusedElement, BarcodeTextBox)
+            || ReferenceEquals(Keyboard.FocusedElement, SelectedPriceTextBox)
+            || ReferenceEquals(Keyboard.FocusedElement, SelectedQuantityTextBox))
+        {
+            return false;
+        }
+
+        var currentIndex = vm.SelectedItem is null ? -1 : vm.Items.IndexOf(vm.SelectedItem);
+        var nextIndex = currentIndex < 0
+            ? (direction > 0 ? 0 : vm.Items.Count - 1)
+            : Math.Clamp(currentIndex + direction, 0, vm.Items.Count - 1);
+
+        if (nextIndex < 0 || nextIndex >= vm.Items.Count)
+        {
+            return false;
+        }
+
+        ItemsDataGrid.SelectedItem = vm.Items[nextIndex];
+        ItemsDataGrid.ScrollIntoView(vm.Items[nextIndex]);
+        SyncSelectionEditors();
+        return true;
+    }
+
+    private async void ReprintLastSale_Click(object sender, RoutedEventArgs e)
+    {
+        await PrintLastSaleAsync(preferCurrentSession: false);
+    }
+
+    private async void PrintReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        await PrintLastSaleAsync(preferCurrentSession: true);
+    }
+
+    private async Task PrintLastSaleAsync(bool preferCurrentSession)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var sale = await vm.GetLastSaleForPrintAsync(preferCurrentSession);
+        if (sale is null)
+        {
+            vm.StatusMessage = "Nenhuma venda concluida foi encontrada para impressao.";
+            FocusBarcode();
+            return;
+        }
+
+        var printContext = await vm.GetPrintContextAsync();
+        ReceiptPrinter.Print(this, sale, sale.ReceiptTaxId, printContext.StoreSettings, printContext.Settings);
+        vm.StatusMessage = preferCurrentSession
+            ? "Comprovante da ultima venda do caixa enviado para impressao."
+            : "Ultima venda concluida enviada para reimpressao.";
+        FocusBarcode();
     }
 
     private Task CancelSaleWithConfirmationAsync()

@@ -203,7 +203,11 @@ public sealed class SyncServiceTests
         public Task<Sale?> FindByIdAsync(Guid saleId, CancellationToken cancellationToken = default)
             => Task.FromResult<Sale?>(null);
 
+<<<<<<< HEAD
         public Task<Sale?> GetLatestCompletedSaleAsync(string? cashRegisterSessionId = null, CancellationToken cancellationToken = default)
+=======
+        public Task<Sale?> GetLatestCompletedSaleAsync(CancellationToken cancellationToken = default)
+>>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
             => Task.FromResult<Sale?>(null);
 
         public Task SaveRemoteSaleReferenceAsync(Guid localSaleId, string remoteSaleId, int? saleNumber, CancellationToken cancellationToken = default)

@@ -32,7 +32,7 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
             if (Owner?.DataContext is MainViewModel vm)
             {
                 _totalCents = vm.TotalCents;
-                DiscountPercentInput = string.Empty;
+                DiscountPercentInput = vm.DefaultDiscountPercent.ToString("0.##");
                 OnPropertyChanged(nameof(SaleValueFormatted));
                 OnPropertyChanged(nameof(DiscountAppliedFormatted));
                 OnPropertyChanged(nameof(TotalWithDiscountFormatted));
@@ -383,9 +383,15 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
             Cancel_Click(sender, e);
             e.Handled = true;
         }
+<<<<<<< HEAD
         else if (vm.MatchesShortcut(e.Key, vm.ChangePriceShortcutLabel))
         {
             Discount_Click(sender, e);
+=======
+        else if (vm.MatchesShortcut(e.Key, vm.OpenPaymentShortcutLabel))
+        {
+            FocusSelectedPayment();
+>>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
             e.Handled = true;
         }
         else if (vm.MatchesShortcut(e.Key, vm.SelectCustomerShortcutLabel))
@@ -393,6 +399,7 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
             SelectCustomer_Click(sender, e);
             e.Handled = true;
         }
+<<<<<<< HEAD
         else if (e.Key == Key.D1 || e.Key == Key.NumPad1)
         {
             CashOption.IsChecked = true;
@@ -415,6 +422,11 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
         {
             DebitCardOption.IsChecked = true;
             DebitCardOption.Focus();
+=======
+        else if (vm.MatchesShortcut(e.Key, vm.PrintReceiptShortcutLabel))
+        {
+            _ = FinalizeAsync(forcePrintReceipt: true);
+>>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
             e.Handled = true;
         }
         else if (e.Key == Key.Up || e.Key == Key.Down)
@@ -498,6 +510,16 @@ public partial class FinalizeSaleWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(DiscountButtonText));
     }
 
+<<<<<<< HEAD
+=======
+    private void FocusSelectedPayment()
+    {
+        var selected = GetSelectedPaymentOption() ?? CashOption;
+        selected.IsChecked = true;
+        selected.Focus();
+    }
+
+>>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
     private RadioButton? GetSelectedPaymentOption()
     {
         return GetPaymentOptions().FirstOrDefault(option => option.IsChecked == true);
