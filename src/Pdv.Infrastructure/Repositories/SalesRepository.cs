@@ -288,11 +288,7 @@ ORDER BY si.rowid;";
         };
     }
 
-<<<<<<< HEAD
     public async Task<Sale?> GetLatestCompletedSaleAsync(string? cashRegisterSessionId = null, CancellationToken cancellationToken = default)
-=======
-    public async Task<Sale?> GetLatestCompletedSaleAsync(CancellationToken cancellationToken = default)
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
     {
         await using var connection = _connectionFactory.Create();
         await connection.OpenAsync(cancellationToken);
@@ -302,15 +298,10 @@ ORDER BY si.rowid;";
 SELECT id
 FROM sales
 WHERE COALESCE(status, 'COMPLETED') IN ('COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED')
-<<<<<<< HEAD
   AND ($cashRegisterSessionId IS NULL OR cash_register_session_id = $cashRegisterSessionId)
 ORDER BY created_at DESC
 LIMIT 1;";
         command.Parameters.AddWithValue("$cashRegisterSessionId", (object?)cashRegisterSessionId ?? DBNull.Value);
-=======
-ORDER BY created_at DESC
-LIMIT 1;";
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
         if (result is null || result is DBNull)

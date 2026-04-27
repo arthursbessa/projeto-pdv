@@ -40,11 +40,6 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
-<<<<<<< HEAD
-=======
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
                             </Grid.RowDefinitions>
                             <TextBlock Text="Adicionar item" Margin="0,0,0,12" VerticalAlignment="Center"/>
                             <ComboBox Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutAddItem}"/>
@@ -56,7 +51,6 @@
                             <ComboBox Grid.Row="3" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutChangeQuantity}"/>
                             <TextBlock Grid.Row="4" Text="Alterar preco" Margin="0,0,0,12" VerticalAlignment="Center"/>
                             <ComboBox Grid.Row="4" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutChangePrice}"/>
-<<<<<<< HEAD
                             <TextBlock Grid.Row="5" Text="Selecionar cliente" Margin="0,0,0,12" VerticalAlignment="Center"/>
                             <ComboBox Grid.Row="5" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutSelectCustomer}"/>
                             <TextBlock Grid.Row="6" Text="Reimprimir ultima venda" Margin="0,0,0,12" VerticalAlignment="Center"/>
@@ -65,20 +59,6 @@
                             <ComboBox Grid.Row="7" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutRemoveItem}"/>
                             <TextBlock Grid.Row="8" Text="Cancelar / voltar" VerticalAlignment="Center"/>
                             <ComboBox Grid.Row="8" Grid.Column="1" Margin="12,0,0,0" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutCancelSale}"/>
-=======
-                            <TextBlock Grid.Row="5" Text="Abrir pagamento" Margin="0,0,0,12" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="5" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutOpenPayment}"/>
-                            <TextBlock Grid.Row="6" Text="Selecionar cliente" Margin="0,0,0,12" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="6" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutSelectCustomer}"/>
-                            <TextBlock Grid.Row="7" Text="Reimprimir ultima venda" Margin="0,0,0,12" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="7" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutReprintLastSale}"/>
-                            <TextBlock Grid.Row="8" Text="Imprimir comprovante" Margin="0,0,0,12" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="8" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutPrintReceipt}"/>
-                            <TextBlock Grid.Row="9" Text="Remover item" Margin="0,0,0,12" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="9" Grid.Column="1" Margin="12,0,0,12" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutRemoveItem}"/>
-                            <TextBlock Grid.Row="10" Text="Cancelar / voltar" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="10" Grid.Column="1" Margin="12,0,0,0" ItemsSource="{Binding AvailableShortcutKeys}" SelectedItem="{Binding ShortcutCancelSale}"/>
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -92,24 +72,6 @@
                     </StackPanel>
                 </Border>
 
-<<<<<<< HEAD
-=======
-                <Border Margin="0,18,0,0" Padding="18" Background="White" BorderBrush="#D7E2F0" BorderThickness="1.2" CornerRadius="16">
-                    <StackPanel>
-                        <TextBlock Text="Desconto default" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
-                        <TextBlock Margin="0,14,0,6"
-                                   Text="Percentual aplicado automaticamente ao abrir a finalizacao da venda."
-                                   FontWeight="SemiBold"
-                                   TextWrapping="Wrap"/>
-                        <TextBox Width="180"
-                                 Height="40"
-                                 Padding="12,0"
-                                 VerticalContentAlignment="Center"
-                                 HorizontalAlignment="Left"
-                                 Text="{Binding DefaultDiscountPercentInput, UpdateSourceTrigger=PropertyChanged}"/>
-                    </StackPanel>
-                </Border>
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
             </StackPanel>
         </ScrollViewer>
 

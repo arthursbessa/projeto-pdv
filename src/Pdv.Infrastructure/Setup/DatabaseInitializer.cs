@@ -446,5 +446,13 @@ VALUES (1, 'Original', 1, NULL, 'Enter', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8
 ON CONFLICT(id) DO NOTHING;";
         settingsCommand.Parameters.AddWithValue("$updatedAt", now);
         await settingsCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        var normalizeDiscountCommand = connection.CreateCommand();
+        normalizeDiscountCommand.CommandText = @"
+UPDATE pdv_settings
+SET default_discount_percent = 0
+WHERE id = 1
+  AND COALESCE(default_discount_percent, 0) <> 0;";
+        await normalizeDiscountCommand.ExecuteNonQueryAsync(cancellationToken);
     }
 }

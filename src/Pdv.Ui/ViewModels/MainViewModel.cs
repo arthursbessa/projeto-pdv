@@ -40,11 +40,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isOnlineIntegration = true;
     private PdvSettings _settings = new();
     private Guid? _lastCompletedSaleId;
-<<<<<<< HEAD
     private bool _canReprintLastSale;
     private string _currentFocusArea = "Leitura do codigo de barras";
-=======
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
 
     public MainViewModel(
         SaleBuilderService saleBuilderService,
@@ -185,15 +182,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SearchProductShortcutLabel => _settings.ShortcutSearchProduct;
     public string ChangeQuantityShortcutLabel => _settings.ShortcutChangeQuantity;
     public string ChangePriceShortcutLabel => _settings.ShortcutChangePrice;
-<<<<<<< HEAD
     public string SelectCustomerShortcutLabel => _settings.ShortcutSelectCustomer;
     public string ReprintLastSaleShortcutLabel => _settings.ShortcutReprintLastSale;
-=======
-    public string OpenPaymentShortcutLabel => _settings.ShortcutOpenPayment;
-    public string SelectCustomerShortcutLabel => _settings.ShortcutSelectCustomer;
-    public string ReprintLastSaleShortcutLabel => _settings.ShortcutReprintLastSale;
-    public string PrintReceiptShortcutLabel => _settings.ShortcutPrintReceipt;
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
     public string RemoveItemShortcutLabel => _settings.ShortcutRemoveItem;
     public string CancelSaleShortcutLabel => _settings.ShortcutCancelSale;
     public decimal DefaultDiscountPercent => _settings.DefaultDiscountPercent;
@@ -206,15 +196,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SearchProductShortcutLabel));
         OnPropertyChanged(nameof(ChangeQuantityShortcutLabel));
         OnPropertyChanged(nameof(ChangePriceShortcutLabel));
-<<<<<<< HEAD
         OnPropertyChanged(nameof(SelectCustomerShortcutLabel));
         OnPropertyChanged(nameof(ReprintLastSaleShortcutLabel));
-=======
-        OnPropertyChanged(nameof(OpenPaymentShortcutLabel));
-        OnPropertyChanged(nameof(SelectCustomerShortcutLabel));
-        OnPropertyChanged(nameof(ReprintLastSaleShortcutLabel));
-        OnPropertyChanged(nameof(PrintReceiptShortcutLabel));
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
         OnPropertyChanged(nameof(DefaultDiscountPercent));
@@ -237,15 +220,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SearchProductShortcutLabel));
         OnPropertyChanged(nameof(ChangeQuantityShortcutLabel));
         OnPropertyChanged(nameof(ChangePriceShortcutLabel));
-<<<<<<< HEAD
         OnPropertyChanged(nameof(SelectCustomerShortcutLabel));
         OnPropertyChanged(nameof(ReprintLastSaleShortcutLabel));
-=======
-        OnPropertyChanged(nameof(OpenPaymentShortcutLabel));
-        OnPropertyChanged(nameof(SelectCustomerShortcutLabel));
-        OnPropertyChanged(nameof(ReprintLastSaleShortcutLabel));
-        OnPropertyChanged(nameof(PrintReceiptShortcutLabel));
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
         OnPropertyChanged(nameof(RemoveItemShortcutLabel));
         OnPropertyChanged(nameof(CancelSaleShortcutLabel));
         OnPropertyChanged(nameof(DefaultDiscountPercent));
@@ -608,10 +584,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await _salesRepository.SaveSaleWithOutboxAsync(sale, payload, _session.OpenCashRegister.Id);
             TriggerBackgroundSync();
             _lastCompletedSaleId = sale.SaleId;
-<<<<<<< HEAD
             CanReprintLastSale = true;
-=======
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
 
             var pending = await _outboxRepository.GetPendingCountAsync();
             CancelSale();
@@ -637,15 +610,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return (storeSettings, settings);
     }
 
-<<<<<<< HEAD
     public async Task<Sale?> GetLastSaleForPrintAsync()
     {
         if (_lastCompletedSaleId.HasValue)
-=======
-    public async Task<Sale?> GetLastSaleForPrintAsync(bool preferCurrentSession = false)
-    {
-        if (preferCurrentSession && _lastCompletedSaleId.HasValue)
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
         {
             var currentSessionSale = await _salesRepository.FindByIdAsync(_lastCompletedSaleId.Value);
             if (currentSessionSale is not null)
@@ -654,7 +621,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
         }
 
-<<<<<<< HEAD
         return await _salesRepository.GetLatestCompletedSaleAsync(_session.OpenCashRegister?.Id);
     }
 
@@ -669,9 +635,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var sale = await _salesRepository.GetLatestCompletedSaleAsync(_session.OpenCashRegister.Id);
         _lastCompletedSaleId = sale?.SaleId;
         CanReprintLastSale = sale is not null;
-=======
-        return await _salesRepository.GetLatestCompletedSaleAsync();
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
     }
 
     private void TriggerBackgroundSync()

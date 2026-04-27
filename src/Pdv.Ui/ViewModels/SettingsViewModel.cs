@@ -14,11 +14,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private readonly IPdvSettingsRepository _settingsRepository;
     private readonly IErrorFileLogger _errorLogger;
     private bool _isBusy;
-<<<<<<< HEAD
     private string _statusMessage = "Configure atalhos e impressao do PDV.";
-=======
-    private string _statusMessage = "Configure atalhos, impressao e desconto padrao.";
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
     private bool _askPrinterBeforePrint = true;
     private string? _preferredPrinterName;
     private string _productTextCaseInput = "Original";
@@ -27,15 +23,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private string _shortcutSearchProduct = "F3";
     private string _shortcutChangeQuantity = "F4";
     private string _shortcutChangePrice = "F5";
-<<<<<<< HEAD
     private string _shortcutSelectCustomer = "F7";
     private string _shortcutReprintLastSale = "F8";
-=======
-    private string _shortcutOpenPayment = "F6";
-    private string _shortcutSelectCustomer = "F7";
-    private string _shortcutReprintLastSale = "F8";
-    private string _shortcutPrintReceipt = "F9";
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
     private string _shortcutRemoveItem = "Delete";
     private string _shortcutCancelSale = "Escape";
     private string _defaultDiscountPercentInput = "0";
@@ -59,21 +48,11 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     public string ShortcutSearchProduct { get => _shortcutSearchProduct; set => SetField(ref _shortcutSearchProduct, value); }
     public string ShortcutChangeQuantity { get => _shortcutChangeQuantity; set => SetField(ref _shortcutChangeQuantity, value); }
     public string ShortcutChangePrice { get => _shortcutChangePrice; set => SetField(ref _shortcutChangePrice, value); }
-<<<<<<< HEAD
     public string ShortcutSelectCustomer { get => _shortcutSelectCustomer; set => SetField(ref _shortcutSelectCustomer, value); }
     public string ShortcutReprintLastSale { get => _shortcutReprintLastSale; set => SetField(ref _shortcutReprintLastSale, value); }
-    public string ShortcutRemoveItem { get => _shortcutRemoveItem; set => SetField(ref _shortcutRemoveItem, value); }
-    public string ShortcutCancelSale { get => _shortcutCancelSale; set => SetField(ref _shortcutCancelSale, value); }
-=======
-    public string ShortcutOpenPayment { get => _shortcutOpenPayment; set => SetField(ref _shortcutOpenPayment, value); }
-    public string ShortcutSelectCustomer { get => _shortcutSelectCustomer; set => SetField(ref _shortcutSelectCustomer, value); }
-    public string ShortcutReprintLastSale { get => _shortcutReprintLastSale; set => SetField(ref _shortcutReprintLastSale, value); }
-    public string ShortcutPrintReceipt { get => _shortcutPrintReceipt; set => SetField(ref _shortcutPrintReceipt, value); }
     public string ShortcutRemoveItem { get => _shortcutRemoveItem; set => SetField(ref _shortcutRemoveItem, value); }
     public string ShortcutCancelSale { get => _shortcutCancelSale; set => SetField(ref _shortcutCancelSale, value); }
     public string DefaultDiscountPercentInput { get => _defaultDiscountPercentInput; set => SetField(ref _defaultDiscountPercentInput, value); }
-
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
     public async Task LoadAsync()
     {
         var settings = await _settingsRepository.GetCurrentAsync();
@@ -85,15 +64,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         ShortcutSearchProduct = settings.ShortcutSearchProduct;
         ShortcutChangeQuantity = settings.ShortcutChangeQuantity;
         ShortcutChangePrice = settings.ShortcutChangePrice;
-<<<<<<< HEAD
         ShortcutSelectCustomer = settings.ShortcutSelectCustomer;
         ShortcutReprintLastSale = settings.ShortcutReprintLastSale;
-=======
-        ShortcutOpenPayment = settings.ShortcutOpenPayment;
-        ShortcutSelectCustomer = settings.ShortcutSelectCustomer;
-        ShortcutReprintLastSale = settings.ShortcutReprintLastSale;
-        ShortcutPrintReceipt = settings.ShortcutPrintReceipt;
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
         ShortcutRemoveItem = settings.ShortcutRemoveItem;
         ShortcutCancelSale = settings.ShortcutCancelSale;
         DefaultDiscountPercentInput = settings.DefaultDiscountPercent.ToString("0.##");
@@ -138,21 +110,6 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         settings = new PdvSettings();
         errorMessage = string.Empty;
 
-<<<<<<< HEAD
-=======
-        if (!decimal.TryParse(
-                (DefaultDiscountPercentInput ?? "0").Replace(",", "."),
-                System.Globalization.NumberStyles.Any,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var defaultDiscountPercent)
-            || defaultDiscountPercent < 0
-            || defaultDiscountPercent > 100)
-        {
-            errorMessage = "Informe um desconto padrao valido entre 0 e 100.";
-            return false;
-        }
-
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
         var shortcutMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["Adicionar item"] = ShortcutAddItem,
@@ -160,15 +117,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
             ["Buscar produto"] = ShortcutSearchProduct,
             ["Alterar quantidade"] = ShortcutChangeQuantity,
             ["Alterar preco"] = ShortcutChangePrice,
-<<<<<<< HEAD
             ["Selecionar cliente"] = ShortcutSelectCustomer,
             ["Reimprimir ultima venda"] = ShortcutReprintLastSale,
-=======
-            ["Abrir pagamento"] = ShortcutOpenPayment,
-            ["Selecionar cliente"] = ShortcutSelectCustomer,
-            ["Reimprimir ultima venda"] = ShortcutReprintLastSale,
-            ["Imprimir comprovante"] = ShortcutPrintReceipt,
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
             ["Remover item"] = ShortcutRemoveItem,
             ["Cancelar / voltar"] = ShortcutCancelSale
         };
@@ -194,21 +144,11 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
             ShortcutSearchProduct = ShortcutSearchProduct,
             ShortcutChangeQuantity = ShortcutChangeQuantity,
             ShortcutChangePrice = ShortcutChangePrice,
-<<<<<<< HEAD
             ShortcutSelectCustomer = ShortcutSelectCustomer,
             ShortcutReprintLastSale = ShortcutReprintLastSale,
             ShortcutRemoveItem = ShortcutRemoveItem,
             ShortcutCancelSale = ShortcutCancelSale,
             DefaultDiscountPercent = 0m
-=======
-            ShortcutOpenPayment = ShortcutOpenPayment,
-            ShortcutSelectCustomer = ShortcutSelectCustomer,
-            ShortcutReprintLastSale = ShortcutReprintLastSale,
-            ShortcutPrintReceipt = ShortcutPrintReceipt,
-            ShortcutRemoveItem = ShortcutRemoveItem,
-            ShortcutCancelSale = ShortcutCancelSale,
-            DefaultDiscountPercent = defaultDiscountPercent
->>>>>>> 499a3e3976bb49ef8087dcf2bfc67641afe3b3a5
         };
 
         return true;
